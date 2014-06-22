@@ -1,14 +1,31 @@
 {
-    "name": "Ace File Editor",
-    "main": "index.html",
+    "name": "Ace File Editor", 
+    "nodejs": true, 
+    "description": "", 
+    "single-instance": true, 
+    "keywords": [], 
     "window": {
-        "title": "File Editor",
-        "toolbar": false,
-        "position": "center",
-        "width": 800,
-        "height": 700,
-        "resizable": true,
-        "show": false,
-	    "frame": true
-    }
+        "fullscreen": false, 
+        "resizable": true, 
+        "title": "File Editor", 
+        "always-on-top": false, 
+        "frame": true, 
+        "show": false, 
+        "visible": true, 
+        "height": 700, 
+        "width": 800, 
+        "as_desktop": true, 
+        "position": "", 
+        "show_in_taskbar": true, 
+        "toolbar": true, 
+        "icon": ""
+    }, 
+    "version": "0.1.0", 
+    "webkit": {
+        "page-cache": false, 
+        "java": false, 
+        "plugin": false
+    }, 
+    "main": "index.html", 
+    "node-main": ""
 }

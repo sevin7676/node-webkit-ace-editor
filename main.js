@@ -1,7 +1,11 @@
 if(!window.appLoad){
     var appconfig = require("./package.json");
-    window.appLoad = function(gui) {
-        
+    window.appLoad = function (gui) {
+        console.log('global debug vars: gui, win (gui.Window.get(), editor, server');
+        window.win = gui.Window.get();
+        window.gui = gui;//for debugging
+        process.on("uncaughtException", function (e) { console.log(e); });//this line logs errors to console instead of crashing the application
+
         var ace = window.ace;
         
         var detectedMode;
@@ -27,7 +31,81 @@ if(!window.appLoad){
         }
         
         var editor = ace.edit("editor");
-        
+        window.editor = editor;//for debugging      
+        editor.getSession().setMode("ace/mode/sql");
+        editor.getSession().setUseWrapMode(true);
+        editor.getSession().setWrapLimitRange(null, null);
+        editor.setShowPrintMargin(false);
+
+        //load tern
+        ace.config.loadModule('ace/ext/language_tools', function () {
+            ace.config.loadModule('ace/ext/tern', function () {
+                editor.setOptions({
+                    enableTern: true,
+                    enableSnippets: true,
+                    enableBasicAutocompletion: true
+                });
+                window.server = ace.require('ace/ext/tern').server;
+            });
+        });
+
+        //config (ctrl-,)
+        var config = ace.require("ace/config");
+        config.init();
+
+        //add commands from kitchen sink demo
+
+        editor.commands.addCommands([{
+            name: "execute",
+            bindKey: "ctrl+enter",
+            exec: function (editor) {
+                window.win.showDevTools();
+                try {
+                    var r = window.eval(editor.getCopyText() || editor.getValue());
+                } catch (e) {
+                    r = e;
+                }
+                editor.cmdLine.setValue(r + "");
+            },
+            readOnly: true
+        }, {
+            name: "showKeyboardShortcuts",
+            bindKey: { win: "Ctrl-Alt-h", mac: "Command-Alt-h" },
+            exec: function (editor) {
+                config.loadModule("ace/ext/keybinding_menu", function (module) {
+                    module.init(editor);
+                    editor.showKeyboardShortcuts();
+                });
+            }
+        }, {
+            name: "increaseFontSize",
+            bindKey: "Ctrl-=|Ctrl-+",
+            exec: function (editor) {
+                //var size = parseInt(editor.getFontSize(), 10) || 12;
+                // editor.setFontSize(size + 1);
+                window.win.zoomLevel++;
+                log('increase font size');
+            }
+        }, {
+            name: "decreaseFontSize",
+            bindKey: "Ctrl+-|Ctrl-_",
+            exec: function (editor) {
+               // var size = parseInt(editor.getFontSize(), 10) || 12;
+                // editor.setFontSize(Math.max(size - 1 || 1));
+                window.win.zoomLevel--;
+                log('decrease font size');
+            }
+        }, {
+            name: "resetFontSize",
+            bindKey: "Ctrl+0|Ctrl-Numpad0",
+            exec: function (editor) {
+                // editor.setFontSize(12);
+                window.win.zoomLevel = 0;
+                log('reset font size');
+            }
+        }]);
+
+
         editor.commands.addCommand({
             name: 'beautify',
             bindKey: {mac: "Command-Shift-B", win: "Shift-Ctrl-B"},
@@ -36,6 +114,14 @@ if(!window.appLoad){
                 var sel = editor.selection;
                 var session = editor.session;
                 var range = sel.getRange();
+                //if nothing is selected, then select all
+                if (range.start.row === range.end.row && range.start.column === range.end.column) {
+                    range.start.row = 0;
+                    range.start.column = 0;
+                    var lastLine = editor.session.getLength() - 1;
+                    range.end.row = lastLine;
+                    range.end.column = editor.session.getLine(lastLine).length;
+                }
                 var options = {};
                     options.space_before_conditional = true;
                     options.keep_array_indentation =  false;
@@ -104,7 +190,7 @@ if(!window.appLoad){
         });
         
         
-        var theme = window.localStorage.aceTheme || "twilight";
+        var theme = window.localStorage.aceTheme || "chrome";
         editor.setTheme("ace/theme/"+theme);
         var editorSession = editor.getSession();
         // name: ["Menu caption", "extensions", "content-type", "hidden|other"]
@@ -398,6 +484,24 @@ if(!window.appLoad){
     
         $("#windowClose").click(function() {
             win.close();
+        });
+
+
+        //edit menu
+        $("[data-cmd]").click(function (e) {
+            var cmd = e.target.attributes["data-cmd"].value;
+            if (cmd == 'zoom+') {
+                window.win.zoomLevel++;
+            }
+            else if (cmd == 'zoom-') {
+                window.win.zoomLevel--;
+            }
+            else if (cmd == 'zoom0') {
+                window.win.zoomLevel=0;
+            }
+            else {
+                log('cmd=' + cmd);
+            }
         });
     };
 }
