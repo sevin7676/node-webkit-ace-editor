@@ -314,8 +314,17 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                 name: name,
                 changed: null
             };
-            this.server.addFile(name, docValue(this, data));
-            doc.on("change", this.trackChange);
+            var value = '';
+            //GHETTO: hack to let a plain string work as a document for auto complete only. need to comeback and fix (make it add a editor or editor session from the string)
+            if(doc.constructor.name === 'String'){
+                value = doc;
+                //log('adding doc as string');
+            }
+            else{
+                value =docValue(this, data);
+                doc.on("change", this.trackChange);
+            }
+            this.server.addFile(name, value);
             return this.docs[name] = data;
         },
         /**
@@ -700,7 +709,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
      */
     function updateArgHints(ts, editor) {
         closeArgHints(ts);
-        if (editor.getSession().getTextRange(editor.getSelectionRange()) != '') {
+        if (editor.getSession().getTextRange(editor.getSelectionRange()) !== '') {
             return; //something is selected
         }
         if (!inJavascriptMode(editor)) {
@@ -739,9 +748,12 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                         if (wordBeforeFnName && wordBeforeFnName.toLowerCase() === 'function') {
                             break;
                         }
-                        //Make sure this is not in a comment
-                        if (editor.session.getTokenAt(row, col).type === 'comment') {
-                            break;
+                        //Make sure this is not in a comment or start of a if statement
+                        var token = editor.session.getTokenAt(row, col);
+                        if(token){
+                            if(token.type ==='comment' || token.type ==='keyword'){
+                                break;
+                            }
                         }
                         start = {
                             line: row,

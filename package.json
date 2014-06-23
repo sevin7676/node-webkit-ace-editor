@@ -1,16 +1,19 @@
 {
     "description": "Ace", 
-    "name": "AceEditor", 
     "nodejs": true, 
     "single-instance": false, 
-    "keywords": [], 
+    "webkit": {
+        "page-cache": true, 
+        "java": false, 
+        "plugin": false
+    }, 
     "window": {
         "fullscreen": false, 
         "resizable": true, 
-        "title": "Editor", 
+        "show": true, 
         "always-on-top": false, 
         "frame": true, 
-        "show": true, 
+        "title": "Editor", 
         "height": 1000, 
         "visible": true, 
         "as_desktop": true, 
@@ -21,11 +24,8 @@
         "icon": "logo.png"
     }, 
     "version": "0.1.0", 
-    "webkit": {
-        "page-cache": true, 
-        "java": false, 
-        "plugin": false
-    }, 
+    "node-main": "", 
+    "keywords": [], 
     "main": "index.html", 
-    "node-main": ""
+    "name": "AceEditor"
 }

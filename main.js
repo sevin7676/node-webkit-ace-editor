@@ -1,9 +1,10 @@
 if (!window.appLoad) {
     var appconfig = require("./package.json");
     window.appLoad = function(gui) {
-        console.log('global debug vars: gui, win (gui.Window.get(), editor, server');
+        console.log('global debug vars: gui, win (gui.Window.get()), editor, server, loadedFile, fs');
         window.win = gui.Window.get();
         window.gui = gui; //for debugging        
+        window.loadedFile = '';
 
         var ace = window.ace;
 
@@ -14,9 +15,8 @@ if (!window.appLoad) {
 
         var win = gui.Window.get();
         win.show();
-        var fs = require("fs");
+        var fs = require("fs"); window.fs = fs;//for debugging        
         var Path = require("path");
-
         if (!window.global.OpenerLoaded) {
             window.global.OpenerLoaded = true;
             gui.App.on("open", function(filename) {
@@ -25,11 +25,124 @@ if (!window.appLoad) {
             });
         }
 
+        //opens new window 
         function OpenFileWindow(filename) {
             log('filename', filename);
             var win = gui.Window.open('index.html', appconfig.window);
             win.currentFile = filename;
         }
+
+
+        //#region GetTernRefs
+        function loadTernRefs() {
+            if (editor.ternServer && editor.ternServer.enabledAtCurrentLocation(editor)) {
+                var StringtoCheck = "";
+                for (var i = 0; i < editor.session.getLength(); i++) {
+                    var thisLine = editor.session.getLine(i);
+                    if (thisLine.substr(0, 3) === "///") {
+                        StringtoCheck += "\n" + thisLine;
+                    }
+                    else {
+                        break;//only top lines may be references
+                    }
+                }
+                if (StringtoCheck !== '') {
+                    var re = /(?!\/\/\/\s*?<reference path=")[^"]*/g;                    
+                    var m;
+                    var refs = [];
+                    while ((m = re.exec(StringtoCheck)) != null) {
+                        if (m.index === re.lastIndex) {
+                            re.lastIndex++;
+                        }
+                        var r = m[0].replace('"', '');
+                        if (r.toLowerCase().indexOf('reference path') === -1 && r.trim() !== '' && r.toLowerCase().indexOf('/>') === -1) {
+                            refs.push(r);
+                        }
+                    }
+                    //get current path from loaded file
+                    var currentPath = '';
+                    try {
+                        currentPath = window.loadedFile.substring(0, window.loadedFile.lastIndexOf("\\") + 1);
+                    }
+                    catch (ex) {
+                        log('failed to get current file path from: ' + window.loadedFile, ex);
+                    }
+                    log('refs', refs, 'currentPath', currentPath, 'window.loadedFile', window.loadedFile);
+
+                    //resolves path if needed (if relative)
+                    function ResolvePath(path) {
+                        var pathPart1=currentPath;
+                        if (path.toLowerCase().indexOf("http") !== -1) {
+                            return path;
+                        }
+                        path = path.replace(new RegExp('/', 'g'), '\\');//forward to back slashes
+                        while (path.substr(0, 3) === '..\\') {                            
+                            var t1 = pathPart1.substr(0, pathPart1.lastIndexOf("\\"));
+                            var t2 = t1.substr(0, t1.lastIndexOf("\\"));
+                            pathPart1 = t2;
+                            path = path.substring(3);
+                        }
+                        return pathPart1 + "\\" + path;                        
+                    }                   
+                    //reads file and adds to tern
+                    function ReadFile_AddToTern(name, path)
+                    {
+                        if (path.toLowerCase().indexOf("http") !== -1) {
+                            var http = require('http');                                                   
+                            //downloads file and fires callback whend one
+                             function downloadFile(url, dest, cb) {
+                                var file = fs.createWriteStream(dest);
+                                var request = http.get(url, function (response) {
+                                    response.pipe(file);
+                                    file.on('finish', function () {
+                                        file.close(cb);
+                                    });
+                                });
+                             }
+                            //generate temp file name
+                             var tempFileName = "TEMP_" + Math.random().toString(36).slice(2) + ".js";
+
+                            //download file to temp directory
+                            downloadFile(path, tempFileName, function () {
+                                //download file complete, now read it and add to tern
+                                 fs.readFile(tempFileName, function (err, data) {
+                                     if (err) {
+                                         log('error getting file: ' + path, err);
+                                     }
+                                     else {
+                                         log({stack:false, time:false},'adding ' + name + ' to tern (' + path + ')');
+                                         editor.ternServer.addDoc(name, data.toString());
+                                     }
+                                     //now delete the temp file
+                                     fs.unlink(tempFileName);
+                                 });                                 
+                             });
+                        }
+                        else {//local
+                            fs.readFile(thisPath, function (err, data) {
+                                if (err) {
+                                    log('error getting file: ' + path, err);
+                                }
+                                else {
+                                    log({ stack: false, time: false }, 'adding ' + name + ' to tern (' + path + ')');
+                                    editor.ternServer.addDoc(name, data.toString());
+                                }
+                            });
+                        }
+                    }
+                    //load each file
+                    for (var i = 0; i < refs.length; i++) {
+                        var thisPath = ResolvePath(refs[i]);
+                        var name = thisPath.replace(/^.*[\\\/]/, '')
+                        ReadFile_AddToTern(name, thisPath);
+                    }
+                }
+            }
+            else {
+                log('tern not enabled at current location');
+            }            
+        }
+        //#endregion
 
 
         //#region LoadAce
@@ -314,7 +427,6 @@ if (!window.appLoad) {
             openFile();
         }
 
-
         editorSession.on("change", function() {
             if (currentFile) {
                 hasChanged = true;
@@ -324,13 +436,14 @@ if (!window.appLoad) {
 
         $(window).keypress(function(event) {
             if (!(event.which == 115 && event.ctrlKey) && event.which !== 19) return true;
-            event.preventDefault();
+            // event.preventDefault(); //this is likely what was screwing up hotkeys!
             if (!currentFile) return false;
             saveFileFN();
             return false;
         });
 
         function openFile(path) {
+            window.currentFile = path;//set global
             if (hasChanged && !saveFileFN(true)) return false;
             currentFile = null;
             if (path) {
@@ -342,12 +455,13 @@ if (!window.appLoad) {
                 hasChanged = false;
                 editor.getSession().setValue(fs.readFileSync(path, "utf8"));
                 hasChanged = false;
+                window.loadedFile = path;//for tern refs
+                setTimeout(loadTernRefs, 3000);//load tern refs
             }
             else {
                 path = "Untitled";
                 editor.getSession().setValue("");
             }
-
             currentFile = path;
             $("title").text(currentFile);
         }
@@ -464,18 +578,14 @@ if (!window.appLoad) {
             $("[data-mode]").parent().removeClass("active");
             $("[data-mode='" + mode + "']").parent().addClass("active");
         });
-
-
         $("[data-mode]").hover(function(e) {
             var mode = e.target.attributes["data-mode"].value;
             editor.getSession().setMode("ace/mode/" + mode);
         }, function() {
             editor.getSession().setMode("ace/mode/" + detectedMode);
         });
-
         $("[data-mode]").parent().removeClass("active");
         $("[data-mode='" + detectedMode + "']").parent().addClass("active");
-
         win.on('close', function() {
             function disp_confirm() {
                 var r = confirm("Press a button!");
@@ -488,7 +598,6 @@ if (!window.appLoad) {
             }
             win.close(true);
         });
-
         $("#windowClose").click(function() {
             win.close();
         });
