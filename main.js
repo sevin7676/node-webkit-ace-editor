@@ -56,7 +56,9 @@ if (!window.appLoad) {
                         }
                         var r = m[0].replace('"', '');
                         if (r.toLowerCase().indexOf('reference path') === -1 && r.trim() !== '' && r.toLowerCase().indexOf('/>') === -1) {
-                            refs.push(r);
+                            if (r.toLowerCase().indexOf('vsdoc') === -1) {//dont load vs doc files as they are visual studio xml junk
+                                refs.push(r);
+                            }
                         }
                     }
                     //get current path from loaded file
