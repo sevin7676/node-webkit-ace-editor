@@ -1,12 +1,11 @@
-
 /**
-* Logs Debug information to console;
-* Call from any function and simply pass arguments;
-* Example: DBG(arguments);
-* @param {array} a - the 'arguments' variable in the current function
-* @param {bool} [logParams=false] - pass true to log parameters as objects to console
-* @param {bool} [NoTrace=false] - pass true to prevent adding stack trace
-*/
+ * Logs Debug information to console;
+ * Call from any function and simply pass arguments;
+ * Example: DBG(arguments);
+ * @param {array} a - the 'arguments' variable in the current function
+ * @param {bool} [logParams=false] - pass true to log parameters as objects to console
+ * @param {bool} [NoTrace=false] - pass true to prevent adding stack trace
+ */
 function DBG(a, logParams, NoTrace) {
     if (logParams !== true) {
         logParams = false;
@@ -18,8 +17,7 @@ function DBG(a, logParams, NoTrace) {
     function getParamNames(func) {
         var fnStr = func.toString().replace(STRIP_COMMENTS, '');
         var result = fnStr.slice(fnStr.indexOf('(') + 1, fnStr.indexOf(')')).match(ARGUMENT_NAMES);
-        if (result === null)
-            result = [];
+        if (result === null) result = [];
         return result;
     }
     var r = '';
@@ -34,7 +32,7 @@ function DBG(a, logParams, NoTrace) {
                 r += "Fn Name: " + a.callee.name;
             }
             else {
-                r += "Fn Name: undefined" ;
+                r += "Fn Name: undefined";
             }
             if (a.callee.caller) {
                 r += brk;
@@ -96,7 +94,7 @@ function DBG(a, logParams, NoTrace) {
                 r += "\n Ran into error trying to print stack: " + ex;
             }
         }
-        console.log(r+"\n\n");
+        console.log(r + "\n\n");
     }
     catch (ex) {
         console.log('DBG called and ran into error:', ex);
@@ -105,8 +103,8 @@ function DBG(a, logParams, NoTrace) {
 
 /**
  * Logs a object with description and sets a global variable for testing it
- * @param {obj} object 
- * @param {string} [str_Description] - description for object 
+ * @param {obj} object
+ * @param {string} [str_Description] - description for object
  * @param {bool} [NoTrace=false] - pass true to prevent adding stack trace
  */
 function logO(object, str_Description, NoTrace) {
@@ -116,7 +114,9 @@ function logO(object, str_Description, NoTrace) {
         }
         var globalVarName = '';
         logOtempCount++;
-        if (logOtempCount > 99) { logOtempCount = 1; }//max of 99 temp vars
+        if (logOtempCount > 99) {
+            logOtempCount = 1;
+        } //max of 99 temp vars
         globalVarName = 'tmp' + logOtempCount;
         window[globalVarName] = object;
         str_Description = 'window.' + globalVarName + ' = ' + str_Description + ' (next logged object) ';
@@ -131,23 +131,33 @@ function logO(object, str_Description, NoTrace) {
                     if (!t) {
                         continue;
                     }
-                    if (t.toLowerCase().indexOf("at log") !== -1) {//dont log this
+                    if (t.toLowerCase().indexOf("at log") !== -1) { //dont log this
                         continue;
                     }
                     validTraces.push(t);
                     validTraceCount++;
-                    if (validTraceCount > 1) { break; }
+                    if (validTraceCount > 1) {
+                        break;
+                    }
                 }
                 str_Description += '\n' + validTraces.join('\n');
             }
-            catch (ex) { setTimeout(function () { throw (ex); }, 0); }
+            catch (ex) {
+                setTimeout(function() {
+                    throw (ex);
+                }, 0);
+            }
         }
         if (str_Description) {
             console.log('\n' + str_Description);
         }
         console.log(object);
     }
-    catch (ex) { setTimeout(function () { throw (ex); }, 0); }
+    catch (ex) {
+        setTimeout(function() {
+            throw (ex);
+        }, 0);
+    }
 }
 
 
@@ -158,11 +168,15 @@ function logO(object, str_Description, NoTrace) {
  * @param {bool} [options.time=true] - determines if time logged
  * @param {bool} [options.vars=true] - determines if object should be set to global variable names
  */
-function log() {    
+function log() {
     //check if options passed as first arg
-    var options = { 'stack': true, 'time': true, 'vars': true };
+    var options = {
+        'stack': true,
+        'time': true,
+        'vars': true
+    };
     var firstLog = 0;
-    var firstArg = arguments[0];    
+    var firstArg = arguments[0];
     if (firstArg && (firstArg.hasOwnProperty('stack') || firstArg.hasOwnProperty('time') || firstArg.hasOwnProperty('vars'))) {
         firstLog = 1;
         if (firstArg.hasOwnProperty('stack')) {
@@ -173,13 +187,13 @@ function log() {
         }
         if (firstArg.hasOwnProperty('vars')) {
             options['vars'] = firstArg['vars'];
-        }        
+        }
     }
     if (window.logOtempCount === undefined) {
         window.logOtempCount = 0;
     }
     //get Stack
-    var stack = '';    
+    var stack = '';
     if (options.stack) {
         try {
             var traces = new Error().stack.replace('Error', '').split('\n');
@@ -190,17 +204,23 @@ function log() {
                 if (!t) {
                     continue;
                 }
-                if (t.toLowerCase().indexOf("at log") !== -1) {//dont log this
+                if (t.toLowerCase().indexOf("at log") !== -1) { //dont log this
                     continue;
                 }
                 validTraces.push(t);
                 validTraceCount++;
-                if (validTraceCount > 1) { break; }
+                if (validTraceCount > 1) {
+                    break;
+                }
             }
             stack = validTraces.join('\n').replace(/\s+/g, " ").trim();
             stack += '\n\n';
         }
-        catch (ex) { setTimeout(function () { throw (ex); }, 0); }
+        catch (ex) {
+            setTimeout(function() {
+                throw (ex);
+            }, 0);
+        }
     }
     //do loop
     for (var i = firstLog; i < arguments.length; i++) {
@@ -211,22 +231,22 @@ function log() {
         try {
             type = a.constructor.name;
             /*if (type === 'Object') {//plain object
-                msg += 'Type: PlainObject' + '\n' + 'value: ' + JSON.stringify(a, null, '\t');
-            }*/
+msg += 'Type: PlainObject' + '\n' + 'value: ' + JSON.stringify(a, null, '\t');
+}*/
             if (type === 'String' || type === 'Number') {
                 //msg += 'Type: ' + type + '\n' + 'value: ' + a;
-                msg += a ;
+                msg += a;
             }
             else if (type === 'Array' || type === 'Function') {
                 msg += 'Type: ' + type + '\n' + 'value: ' + '(Next Logged Object)';
                 logObject = true;
-            }           
-            else {//any other type is a class
+            }
+            else { //any other type is a class
                 msg += 'Type: ' + type + '\n' + 'value: ' + '(Next Logged Object)';
                 logObject = true;
             }
         }
-        catch (ex) {//will throw error if undefined or null
+        catch (ex) { //will throw error if undefined or null
             type = 'a.constructor.name failed: ' + ex.message;
             if (a === undefined) {
                 msg += 'Type: ' + type + '\n' + 'value: ' + 'undefined';
@@ -237,29 +257,33 @@ function log() {
             else {
                 msg += 'Type: ' + type + '\n' + 'value: ' + '(Next Logged Object)';
                 logObject = true;
-                setTimeout(function () { throw (ex); }, 0);//not sure why this error occurred
+                setTimeout(function() {
+                    throw (ex);
+                }, 0); //not sure why this error occurred
             }
-        }       
+        }
         //now do the logging 
-        msg = msg;        
+        msg = msg;
         var time = (options.time && i === firstLog) ? getTime() + '\n' : '';
         if (logObject) {
             var globalVarName = '';
-            if (options.vars) {             
+            if (options.vars) {
                 logOtempCount++;
-                if (logOtempCount > 99) { logOtempCount = 1; }//max of 99 temp vars
+                if (logOtempCount > 99) {
+                    logOtempCount = 1;
+                } //max of 99 temp vars
                 globalVarName = 'tmp' + logOtempCount;
                 window[globalVarName] = a;
-                globalVarName= '\t window.' + globalVarName + '=\n';//for string below
+                globalVarName = '\t window.' + globalVarName + '=\n'; //for string below
             }
             if (i === firstLog) {
-                console.log( time+ stack,msg +  globalVarName, a);
+                console.log(time + stack, msg + globalVarName, a);
             }
             else {
-                console.log(msg +globalVarName, a);
+                console.log(msg + globalVarName, a);
             }
         }
-        else {            
+        else {
             if (i === firstLog) {
                 console.log(time + stack, msg);
             }
@@ -267,7 +291,7 @@ function log() {
                 console.log(msg);
             }
         }
-    }   
+    }
 }
 
 /**
@@ -275,18 +299,18 @@ function log() {
  */
 function getTime() {
     var D = new Date();
-    return ((D.getHours() < 10) ? "0" : "") + D.getHours() + ":" + ((D.getMinutes() < 10) ? "0" : "") + D.getMinutes() + ":" + ((D.getSeconds() < 10) ? "0" : "") + D.getSeconds() +":" + (D.getMilliseconds() < 10 ? "0" : "") + D.getMilliseconds();
+    return ((D.getHours() < 10) ? "0" : "") + D.getHours() + ":" + ((D.getMinutes() < 10) ? "0" : "") + D.getMinutes() + ":" + ((D.getSeconds() < 10) ? "0" : "") + D.getSeconds() + ":" + (D.getMilliseconds() < 10 ? "0" : "") + D.getMilliseconds();
 }
 
 /**
-* Console.Log for stopwatch (date) for benchmarking
-* Example:  var SW = new Date(); [TimeSomething] LogSW(SW, 'OptionalDescription');
-* @param {date} date_SW - start time
-* @param {string} [str_Msg] - message to display
-* @param {bool} [bool_UseMS=true] determines if dispay should be in milliseconds
-*/
+ * Console.Log for stopwatch (date) for benchmarking
+ * Example:  var SW = new Date(); [TimeSomething] LogSW(SW, 'OptionalDescription');
+ * @param {date} date_SW - start time
+ * @param {string} [str_Msg] - message to display
+ * @param {bool} [bool_UseMS=true] determines if dispay should be in milliseconds
+ */
 function logSW(date_SW, str_Msg, bool_UseMS) {
-    if (typeof (bool_UseMS) === 'undefined') {
+    if (typeof(bool_UseMS) === 'undefined') {
         bool_UseMS = true;
     }
     try {
@@ -299,5 +323,7 @@ function logSW(date_SW, str_Msg, bool_UseMS) {
         }
         log(s + str_Msg);
     }
-    catch (ex) { log('LogSW error:',ex); }
+    catch (ex) {
+        log('LogSW error:', ex);
+    }
 }

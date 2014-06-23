@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Ace Tern server configuration (uses worker in separate file)
  *
  * TODO:
@@ -6,223 +6,226 @@
  * - auto init the server and disable it when its not needed
  */
 ace.define('ace/ext/tern', ['require', 'exports', 'module', 'ace/snippets', 'ace/autocomplete', 'ace/config', 'ace/editor'],
-    function (require, exports, module) {
+function(require, exports, module) {
 
-        //#region LoadCompletors_fromLangTools
+    //#region LoadCompletors_fromLangTools
 
-        /* Copied from ext-language_tools.js
-         * needed to allow completors for all languages
-         * adds extra logic to disable keyword and basic completors for javscript mode and enable tern instead
-         */
-        var snippetManager = require("../snippets").snippetManager;     
-        var snippetCompleter = {
-            getCompletions: function (editor, session, pos, prefix, callback) {
-                var snippetMap = snippetManager.snippetMap;
-                var completions = [];
-                snippetManager.getActiveScopes(editor).forEach(function (scope) {
-                    var snippets = snippetMap[scope] || [];
-                    for (var i = snippets.length; i--;) {
-                        var s = snippets[i];
-                        var caption = s.name || s.tabTrigger;
-                        if (!caption)
-                            continue;
-                        completions.push({
-                            caption: caption,
-                            snippet: s.content,
-                            meta: s.tabTrigger && !s.name ? s.tabTrigger + "\u21E5 " : "snippet"
-                        });
-                    }
-                }, this);
-                callback(null, completions);
+    /* Copied from ext-language_tools.js
+     * needed to allow completors for all languages
+     * adds extra logic to disable keyword and basic completors for javscript mode and enable tern instead
+     */
+    var snippetManager = require("../snippets").snippetManager;
+    var snippetCompleter = {
+        getCompletions: function(editor, session, pos, prefix, callback) {
+            var snippetMap = snippetManager.snippetMap;
+            var completions = [];
+            snippetManager.getActiveScopes(editor).forEach(function(scope) {
+                var snippets = snippetMap[scope] || [];
+                for (var i = snippets.length; i--;) {
+                    var s = snippets[i];
+                    var caption = s.name || s.tabTrigger;
+                    if (!caption) continue;
+                    completions.push({
+                        caption: caption,
+                        snippet: s.content,
+                        meta: s.tabTrigger && !s.name ? s.tabTrigger + "\u21E5 " : "snippet"
+                    });
+                }
+            }, this);
+            callback(null, completions);
+        }
+    };
+    var textCompleter = require("../autocomplete/text_completer");
+    var keyWordCompleter = {
+        getCompletions: function(editor, session, pos, prefix, callback) {
+            var state = editor.session.getState(pos.row);
+            var completions = session.$mode.getCompletions(state, session, pos, prefix);
+            callback(null, completions);
+        }
+    };
+    var completers = [snippetCompleter, textCompleter, keyWordCompleter];
+    exports.addCompleter = function(completer) {
+        completers.push(completer);
+    };
+    var expandSnippet = {
+        name: "expandSnippet",
+        exec: function(editor) {
+            var success = snippetManager.expandWithTab(editor);
+            if (!success) editor.execCommand("indent");
+        },
+        bindKey: "tab"
+    };
+    var loadSnippetsForMode = function(mode) {
+        var id = mode.$id;
+        if (!snippetManager.files) snippetManager.files = {};
+        loadSnippetFile(id);
+        if (mode.modes) mode.modes.forEach(loadSnippetsForMode);
+    };
+    var loadSnippetFile = function(id) {
+        if (!id || snippetManager.files[id]) return;
+        var snippetFilePath = id.replace("mode", "snippets");
+        snippetManager.files[id] = {};
+        config.loadModule(snippetFilePath, function(m) {
+            if (m) {
+                snippetManager.files[id] = m;
+                m.snippets = snippetManager.parseSnippetFile(m.snippetText);
+                snippetManager.register(m.snippets, m.scope);
+                if (m.includeScopes) {
+                    snippetManager.snippetMap[m.scope].includeScopes = m.includeScopes;
+                    m.includeScopes.forEach(function(x) {
+                        loadSnippetFile("ace/mode/" + x);
+                    });
+                }
             }
-        };
-        var textCompleter = require("../autocomplete/text_completer");
-        var keyWordCompleter = {
-            getCompletions: function (editor, session, pos, prefix, callback) {
-                var state = editor.session.getState(pos.row);
-                var completions = session.$mode.getCompletions(state, session, pos, prefix);
-                callback(null, completions);
+        });
+    };
+    //#endregion
+
+
+    //#region AutoComplete
+
+    /* Override the StartAutoComplete command (from ext-language_tools)   */
+    var Autocomplete = require("../autocomplete").Autocomplete;
+    Autocomplete.startCommand = {
+        name: "startAutocomplete",
+        exec: function(editor) {
+            if (!editor.completer) {
+                editor.completer = new Autocomplete();
             }
-        };
-        var completers = [snippetCompleter, textCompleter, keyWordCompleter];
-        exports.addCompleter = function (completer) {
-            completers.push(completer);
-        };
-        var expandSnippet = {
-            name: "expandSnippet",
-            exec: function (editor) {
-                var success = snippetManager.expandWithTab(editor);
-                if (!success)
-                    editor.execCommand("indent");
-            },
-            bindKey: "tab"
-        };
-        var loadSnippetsForMode = function (mode) {
-            var id = mode.$id;
-            if (!snippetManager.files)
-                snippetManager.files = {};
-            loadSnippetFile(id);            
-            if (mode.modes)
-                mode.modes.forEach(loadSnippetsForMode);
-        };
-        var loadSnippetFile = function (id) {
-            if (!id || snippetManager.files[id])
-                return;
-            var snippetFilePath = id.replace("mode", "snippets");
-            snippetManager.files[id] = {};
-            config.loadModule(snippetFilePath, function (m) {
-                if (m) {
-                    snippetManager.files[id] = m;
-                    m.snippets = snippetManager.parseSnippetFile(m.snippetText);
-                    snippetManager.register(m.snippets, m.scope);
-                    if (m.includeScopes) {
-                        snippetManager.snippetMap[m.scope].includeScopes = m.includeScopes;
-                        m.includeScopes.forEach(function (x) {
-                            loadSnippetFile("ace/mode/" + x);
-                        });
-                    }
-                }
-            });
-        };
-        //#endregion
+            //determine which completers should be enabled
+            editor.completers = [];
+            if (editor.$enableSnippets) { //snippets are allowed with or without tern
+                editor.completers.push(snippetCompleter);
+            }
 
-
-        //#region AutoComplete
-
-        /* Override the StartAutoComplete command (from ext-language_tools)   */
-        var Autocomplete = require("../autocomplete").Autocomplete;
-            Autocomplete.startCommand = {
-            name: "startAutocomplete",
-            exec: function (editor) {
-                if (!editor.completer) { editor.completer = new Autocomplete(); }
-                //determine which completers should be enabled
-                editor.completers = [];
-                if (editor.$enableSnippets) {//snippets are allowed with or without tern
-                    editor.completers.push(snippetCompleter);
+            if (editor.ternServer && editor.$enableTern) {
+                //enable tern based on mode
+                if (editor.ternServer.enabledAtCurrentLocation(editor)) {
+                    editor.completers.push(editor.ternServer);
                 }
-                
-                if (editor.ternServer && editor.$enableTern) {                                       
-                    //enable tern based on mode
-                    if (editor.ternServer.enabledAtCurrentLocation(editor)) {
-                        editor.completers.push(editor.ternServer);
-                    }
-                    else {
-                        if (editor.$enableBasicAutocompletion) {
-                            editor.completers.push(textCompleter, keyWordCompleter);
-                        }
-                    }                    
-                }
-                else {//tern not enabled
+                else {
                     if (editor.$enableBasicAutocompletion) {
                         editor.completers.push(textCompleter, keyWordCompleter);
                     }
                 }
-                editor.completer.showPopup(editor);
-                editor.completer.cancelContextMenu();
-            },
-            bindKey: "Ctrl-Space|Ctrl-Shift-Space|Alt-Space"
-        };       
-        var onChangeMode = function (e, editor) {
-            loadSnippetsForMode(editor.session.$mode);
-           // log(editor, editor.session.$mode);
-        };
-        //#endregion
-
-
-        var TernServer = require("../tern").TernServer;        
-        var aceTs = new TernServer({
-            defs: ['jquery', 'browser', 'ecma5'],
-            plugins: {
-                doc_comment: true
-            },
-            workerScript: ace.config.moduleUrl('worker/tern'),
-            useWorker: true,
-            switchToDoc: function (name, start) {
-                console.log('COMEBACK. add functionality to siwtch to doc from tern. name=' + name + '; start=' + start);
             }
-        });
-        //hack: need a better solution to get the editor variable inside of the editor.getSession().selection.onchangeCursor event as the passed variable is of the selection, not the editor. This variable is being set in the enableTern set Option
-        var editor_for_OnCusorChange = null;
-       
-        //show arguments hints when cursor is moved
-        var onCursorChange_Tern = function (e, editor_getSession_selection) {            
-            editor_for_OnCusorChange.ternServer.updateArgHints(editor);            
-        };
-
-        //automatically start auto complete when period is typed
-        var onAfterExec_Tern = function (e, commandManager) {            
-            if (e.command.name === "insertstring" && e.args ===".") {                
-                if (e.editor.ternServer && e.editor.ternServer.enabledAtCurrentLocation(e.editor)) {
-                    e.editor.execCommand("startAutocomplete");
+            else { //tern not enabled
+                if (editor.$enableBasicAutocompletion) {
+                    editor.completers.push(textCompleter, keyWordCompleter);
                 }
             }
-        };
+            editor.completer.showPopup(editor);
+            editor.completer.cancelContextMenu();
+        },
+        bindKey: "Ctrl-Space|Ctrl-Shift-Space|Alt-Space"
+    };
+    var onChangeMode = function(e, editor) {
+        loadSnippetsForMode(editor.session.$mode);
+        // log(editor, editor.session.$mode);
+    };
+    //#endregion
 
-        console.log('TODO- add method for turning off tern server, should also be automatic on mode change. Make sure to remove the cursorchange event bindings that tern has when its off/disabled');
-        completers.push(aceTs); //add
-        exports.server = aceTs;
 
-        var config = require("../config");
-        var Editor = require("../editor").Editor;
-        config.defineOptions(Editor.prototype, "editor", {
-            enableTern: {
-                set: function (val) {                    
-                    if (val) {                       
-                        this.completers = completers;
-                        this.ternServer = aceTs;
-                        this.commands.addCommand(Autocomplete.startCommand);
-                        editor_for_OnCusorChange = this;//hack
-                        this.getSession().selection.on('changeCursor', onCursorChange_Tern);
-                        this.commands.on('afterExec', onAfterExec_Tern);
-                        aceTs.bindAceKeys(this);
-                    }
-                    else {
-                        this.ternServer = undefined;
-                        this.getSession().selection.off('changeCursor', onCursorChange_Tern);
-                        this.commands.off('afterExec', onAfterExec_Tern);
-                        if (!this.enableBasicAutocompletion) {
-                            this.commands.removeCommand(Autocomplete.startCommand);                            
-                        }
-                    }
-                },
-                value: false
-            },
-            enableBasicAutocompletion: {
-                set: function (val) {
-                    if (val) {
-                        this.completers = completers;                    
-                        this.commands.addCommand(Autocomplete.startCommand);
-                    }
-                    else {
-                        if (!this.$enableTern) {
-                            this.commands.removeCommand(Autocomplete.startCommand);
-                        }
-                    }
-                },
-                value: false
-            },
-            enableSnippets: {
-                set: function (val) {
-                    if (val) {
-                        this.commands.addCommand(expandSnippet);
-                        this.on("changeMode", onChangeMode);
-                        onChangeMode(null, this);
-                    }
-                    else {
-                        this.commands.removeCommand(expandSnippet);
-                        this.off("changeMode", onChangeMode);
-                    }
-                },
-                value: false
-            }            
-            //ADD OPTIONS FOR TERN HERE... maybe-- or just let the exports do it
-        });
+    var TernServer = require("../tern").TernServer;
+    var aceTs = new TernServer({
+        defs: ['jquery', 'browser', 'ecma5'],
+        plugins: {
+            doc_comment: true
+        },
+        workerScript: ace.config.moduleUrl('worker/tern'),
+        useWorker: true,
+        switchToDoc: function(name, start) {
+            console.log('COMEBACK. add functionality to siwtch to doc from tern. name=' + name + '; start=' + start);
+        }
     });
+    //hack: need a better solution to get the editor variable inside of the editor.getSession().selection.onchangeCursor event as the passed variable is of the selection, not the editor. This variable is being set in the enableTern set Option
+    var editor_for_OnCusorChange = null;
+
+    //show arguments hints when cursor is moved
+    var onCursorChange_Tern = function(e, editor_getSession_selection) {
+        editor_for_OnCusorChange.ternServer.updateArgHints(editor);
+    };
+
+    //automatically start auto complete when period is typed
+    var onAfterExec_Tern = function(e, commandManager) {
+        if (e.command.name === "insertstring" && e.args === ".") {
+            if (e.editor.ternServer && e.editor.ternServer.enabledAtCurrentLocation(e.editor)) {
+                var pos = editor.getSelectionRange().end;
+                var tok = editor.session.getTokenAt(pos.row, pos.column);
+                if (tok) {
+                    if (tok.type !== 'string' && tok.type !== 'comment') {
+                        e.editor.execCommand("startAutocomplete");
+                    }
+                }
+            }
+        }
+    };
+
+    console.log('TODO- add method for turning off tern server, should also be automatic on mode change. Make sure to remove the cursorchange event bindings that tern has when its off/disabled');
+    completers.push(aceTs); //add
+    exports.server = aceTs;
+
+    var config = require("../config");
+    var Editor = require("../editor").Editor;
+    config.defineOptions(Editor.prototype, "editor", {
+        enableTern: {
+            set: function(val) {
+                if (val) {
+                    this.completers = completers;
+                    this.ternServer = aceTs;
+                    this.commands.addCommand(Autocomplete.startCommand);
+                    editor_for_OnCusorChange = this; //hack
+                    this.getSession().selection.on('changeCursor', onCursorChange_Tern);
+                    this.commands.on('afterExec', onAfterExec_Tern);
+                    aceTs.bindAceKeys(this);
+                }
+                else {
+                    this.ternServer = undefined;
+                    this.getSession().selection.off('changeCursor', onCursorChange_Tern);
+                    this.commands.off('afterExec', onAfterExec_Tern);
+                    if (!this.enableBasicAutocompletion) {
+                        this.commands.removeCommand(Autocomplete.startCommand);
+                    }
+                }
+            },
+            value: false
+        },
+        enableBasicAutocompletion: {
+            set: function(val) {
+                if (val) {
+                    this.completers = completers;
+                    this.commands.addCommand(Autocomplete.startCommand);
+                }
+                else {
+                    if (!this.$enableTern) {
+                        this.commands.removeCommand(Autocomplete.startCommand);
+                    }
+                }
+            },
+            value: false
+        },
+        enableSnippets: {
+            set: function(val) {
+                if (val) {
+                    this.commands.addCommand(expandSnippet);
+                    this.on("changeMode", onChangeMode);
+                    onChangeMode(null, this);
+                }
+                else {
+                    this.commands.removeCommand(expandSnippet);
+                    this.off("changeMode", onChangeMode);
+                }
+            },
+            value: false
+        }
+        //ADD OPTIONS FOR TERN HERE... maybe-- or just let the exports do it
+    });
+});
 
 /**
  *  tern server plugin for ace
  */
-ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function (require, exports, module) {
+ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function(require, exports, module) {
 
     //#region TernServerPublic
 
@@ -235,7 +238,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
      * @param {bool} [options.async=false] - Indicates whether getFile is asynchronous
      * @param {int} [options.fetchTimeout=1000] - Indicates the maximum amount of milliseconds to wait for an asynchronous getFile before giving up on it
      */
-    var TernServer = function (options) {
+    var TernServer = function(options) {
         var self = this;
         this.options = options || {};
         var plugins = this.options.plugins || (this.options.plugins = {});
@@ -249,7 +252,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         else {
             //  logO(plugins, 'plugins in new tern server');
             this.server = new tern.Server({
-                getFile: function (name, c) {
+                getFile: function(name, c) {
                     return getFile(self, name, c);
                 },
                 async: true,
@@ -263,7 +266,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
          * @param {object} change - change event from editor
          * @param {editor} doc 
          */
-        this.trackChange = function (change, doc) {
+        this.trackChange = function(change, doc) {
             trackChange(self, doc, change);
         };
         this.cachedArgHints = null;
@@ -274,7 +277,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
     /**
      * returns line,ch posistion
      */
-    var Pos = function (line, ch) {       
+    var Pos = function(line, ch) {
         return {
             "line": line,
             "ch": ch
@@ -286,7 +289,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
     var aceCommands = {
         ternJumpToDef: {
             name: "ternJumpToDef",
-            exec: function (editor) {
+            exec: function(editor) {
                 editor.ternServer.jumpToDef(editor);
             },
             bindKey: "Alt-."
@@ -295,8 +298,8 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
 
 
     TernServer.prototype = {
-        bindAceKeys:function(editor){
-            editor.commands.addCommand(aceCommands.ternJumpToDef);          
+        bindAceKeys: function(editor) {
+            editor.commands.addCommand(aceCommands.ternJumpToDef);
 
         },
         /**
@@ -304,7 +307,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
          * @param {string} name = name of file
          * @param {string} doc = contents of the file OR the entire ace editor? (in code mirror it adds the CodeMirror.Doc, which is basically the whole editor)
          */
-        addDoc: function (name, doc) {
+        addDoc: function(name, doc) {
             //logO(doc, 'addDoc.doc');
             var data = {
                 doc: doc,
@@ -319,7 +322,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
          * Remove a file from tern server
          * @param {string} name = name of file
          */
-        delDoc: function (name) {         
+        delDoc: function(name) {
             found.doc.off("change", this.trackChange);
             delete this.docs[name];
             this.server.delFile(name);
@@ -329,7 +332,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
          * The secndDoc method this calls sends a request of type 'files' that sends a doc to the server;
          * Perhaps it updates the current document prior to hiding it?
          */
-        hideDoc: function (name) {
+        hideDoc: function(name) {
             closeArgHints(this);
             var found = this.docs[name];
             if (found && found.changed) sendDoc(this, found);
@@ -338,57 +341,56 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
          * Gets completions to display in editor when Ctrl+Space is pressed; This is called by
          * CodeMirror equivalent: complete()
          */
-        getCompletions: function (editor, session, pos, prefix, callback) {
+        getCompletions: function(editor, session, pos, prefix, callback) {
             getCompletions(this, editor, session, pos, prefix, callback);
         },
 
-        getHint: function (cm, c) {
+        getHint: function(cm, c) {
             return hint(this, cm, c);
         },
 
-        showType: function (cm, pos) {
+        showType: function(cm, pos) {
             showType(this, cm, pos);
         },
 
-        updateArgHints: function (cm) {
+        updateArgHints: function(cm) {
             // console.log('update arg hints',cm);
             updateArgHints(this, cm);
         },
 
-        jumpToDef: function (cm) {
+        jumpToDef: function(cm) {
             jumpToDef(this, cm);
         },
 
-        jumpBack: function (cm) {
+        jumpBack: function(cm) {
             jumpBack(this, cm);
         },
 
-        rename: function (cm) {
+        rename: function(cm) {
             rename(this, cm);
         },
 
-        selectName: function (cm) {
+        selectName: function(cm) {
             selectName(this, cm);
         },
         /**
          * Sends request to tern server
          * The guy who intially wrote this did a terrible job.. the request doesnt even get the editors current info for context
          */
-        request: function (editor, query, c, pos) {
+        request: function(editor, query, c, pos) {
             var self = this;
             var doc = findDoc(this, editor);
             var request = buildRequest(this, doc, query, pos);
 
-            this.server.request(request, function (error, data) {
-                if (!error && self.options.responseFilter)
-                    data = self.options.responseFilter(doc, query, request, error, data);
+            this.server.request(request, function(error, data) {
+                if (!error && self.options.responseFilter) data = self.options.responseFilter(doc, query, request, error, data);
                 c(error, data);
             });
         },
         /**
          * returns true if tern should be enabled at current mode (checks for javascript mode or inside of javascript in html mode)
          */
-        enabledAtCurrentLocation: function (editor) {
+        enabledAtCurrentLocation: function(editor) {
             return inJavascriptMode(editor);
         }
     };
@@ -411,14 +413,13 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             if (cur.doc == doc) return cur;
         }
         //this appears to add doc to server if not already on server...
-        if (!name)
-            for (var i = 0; ; ++i) {
-                n = "[doc" + (i || "") + "]";
-                if (!ts.docs[n]) {
-                    name = n;
-                    break;
-                }
+        if (!name) for (var i = 0;; ++i) {
+            n = "[doc" + (i || "") + "]";
+            if (!ts.docs[n]) {
+                name = n;
+                break;
             }
+        }
         return ts.addDoc(name, doc);
     }
 
@@ -506,9 +507,9 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         else {
             query.file = doc.name;
         }
-        
+
         //TODO: need to add tracking of changes , until then, always push this file
-      /*  files.push({
+        /*  files.push({
             type: "full",
             name: doc.name,
             text: docValue(ts, doc)
@@ -516,7 +517,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         query.file = doc.name;
         doc.changed = null;
         */
-      
+
 
         //push changes of any docs on server that are NOT this doc so that they are up to date for tihs request
         for (var name in ts.docs) {
@@ -546,7 +547,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             minLine = null,
             endLine,
             tabSize = editor.session.$tabSize;
-        for (var p = start.line - 1, min = Math.max(0, p - 50) ; p >= min; --p) {
+        for (var p = start.line - 1, min = Math.max(0, p - 50); p >= min; --p) {
             var line = editor.session.getLine(p),
                 fn = line.search(/\bfunction\b/);
             if (fn < 0) continue;
@@ -556,21 +557,22 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             minLine = p;
         }
         if (minLine == null) minLine = min;
-        var max = Math.min(editor.session.getLength()-1, end.line + 20);
-        if (minIndent == null || minIndent == countColumn(editor.session.getLine(start.line), null, tabSize))
-            endLine = max;
-        else
-            for (endLine = end.line + 1; endLine < max; ++endLine) {
-                var indent = countColumn(editor.session.getLine(endLine), null, tabSize);
-                if (indent <= minIndent) break;
-            }
+        var max = Math.min(editor.session.getLength() - 1, end.line + 20);
+        if (minIndent == null || minIndent == countColumn(editor.session.getLine(start.line), null, tabSize)) endLine = max;
+        else for (endLine = end.line + 1; endLine < max; ++endLine) {
+            var indent = countColumn(editor.session.getLine(endLine), null, tabSize);
+            if (indent <= minIndent) break;
+        }
         var from = Pos(minLine, 0);
 
         return {
             type: "part",
             name: data.name,
             offsetLines: from.line,
-            text: editor.session.getTextRange({start: toAceLoc(from) ,end:toAceLoc(Pos(endLine, 0))}) 
+            text: editor.session.getTextRange({
+                start: toAceLoc(from),
+                end: toAceLoc(Pos(endLine, 0))
+            })
         };
     }
 
@@ -619,23 +621,23 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
      * called to get completions, equivalent to cm.tern.hint(ts,cm,c)
      * NOTE: current implmentation of this has this method being called by the language_tools as a completor
      */
-    function getCompletions(ts, editor, session, pos, prefix, callback) {      
+    function getCompletions(ts, editor, session, pos, prefix, callback) {
         ts.request(editor, {
             type: "completions",
             types: true,
             origins: true,
             docs: true,
             filter: false
-        }, function (error, data) {           
+        }, function(error, data) {
 
             if (error) {
                 return showError(editor, error);
-            }            
+            }
             //callback goes to the lang tools completor
-            callback(null, data.completions.map(function (item) {
+            callback(null, data.completions.map(function(item) {
                 return {
                     /**/
-                    iconClass:" "+ ( item.guess? cls + "guess" : typeToIcon(item.type)),
+                    iconClass: " " + (item.guess ? cls + "guess" : typeToIcon(item.type)),
                     doc: item.doc,
                     type: item.type,
                     caption: item.name,
@@ -663,7 +665,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                     return;
                 }
                 editor.completer.popup.on('select', popupSelectionChanged);
-                editor.completer.popup.on('hide', function () {
+                editor.completer.popup.on('hide', function() {
                     closeAllTips();
                 });
                 popupSelectionChanged(); //fire once after first bind
@@ -683,7 +685,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                 //return;
                 var node = editor.completer.popup.renderer.getContainerElement();
                 tooltip = makeTooltip(node.getBoundingClientRect().right + window.pageXOffset,
-                    node.getBoundingClientRect().top + window.pageYOffset, data.doc);
+                node.getBoundingClientRect().top + window.pageYOffset, data.doc);
                 tooltip.className += " " + cls + "hint-doc";
             }
         });
@@ -703,7 +705,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         }
         if (!inJavascriptMode(editor)) {
             return; //javascript mode only (need to comeback to make work while in javascipt inside of html)
-        }       
+        }
 
         var start = {}; //start of query to tern (start of the call location)
         var currentPosistion = editor.getSelectionRange().start; //{row,column}
@@ -755,10 +757,10 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                     argpos += 1;
                 }
             }
-        }     
+        }
         if (!start.hasOwnProperty('line')) { //start not found
             return;
-        }        
+        }
         start = toTernLoc(start); //convert       
 
         //check for arg hints for the same call start, if found, then use them but update the argPos (occurs when moving between args in same call)
@@ -772,18 +774,20 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             type: "type",
             preferFunction: true,
             end: start
-        }, function (error, data) {
+        }, function(error, data) {
             if (error) {
                 return showError(editor, error);
-            }          
-            if (error || !data.type || !(/^fn\(/).test(data.type)) { return; }
+            }
+            if (error || !data.type || !(/^fn\(/).test(data.type)) {
+                return;
+            }
             ts.cachedArgHints = {
                 start: start,
                 type: parseFnType(data.type),
                 name: data.exprName || data.name || "fn",
                 guess: data.guess,
                 doc: editor
-            };            
+            };
             showArgHints(ts, editor, argpos);
         });
     }
@@ -793,11 +797,11 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
      * @param {int} pos - index of the current parameter that the cursor is located at (inside of parameters)
      */
     function showArgHints(ts, editor, pos) {
-        closeArgHints(ts);       
+        closeArgHints(ts);
         var cache = ts.cachedArgHints,
             tp = cache.type;
         var tip = elt("span", cache.guess ? cls + "fhint-guess" : null,
-            elt("span", cls + "fname", cache.name), "(");
+        elt("span", cls + "fname", cache.name), "(");
         for (var i = 0; i < tp.args.length; ++i) {
             if (i) tip.appendChild(document.createTextNode(", "));
             var arg = tp.args[i];
@@ -810,9 +814,13 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         tip.appendChild(document.createTextNode(tp.rettype ? ") ->\u00a0" : ")"));
         if (tp.rettype) tip.appendChild(elt("span", cls + "type", tp.rettype));
 
+        //TODO: see ace source (master)- demo/kitchen-sink/token_tooltip.js to get better way to handle the tooltips!
+
         //get cursor location- there is likely a better way to do this...
         var place = editor.renderer.$cursorLayer.getPixelPosition(); //this gets left correclty, but not top if there is scrolling
         place.top = editor.renderer.$cursorLayer.cursors[0].offsetTop; //this gets top correctly regardless of scrolling, but left is not correct
+
+        place.top += editor.renderer.scroller.getBoundingClientRect().top; //top offset of editor on page
         ts.activeArgHints = makeTooltip(place.left + 45, place.top + 17, tip);
 
         /*   COMEBACK-- add remove tip on scroll
@@ -835,7 +843,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         function skipMatching(upto) {
             var depth = 0,
                 start = pos;
-            for (; ;) {
+            for (;;) {
                 var next = text.charAt(pos);
                 if (upto.test(next) && !depth) return text.slice(start, pos);
                 if (/[{\[\(]/.test(next))++depth;
@@ -845,20 +853,19 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         }
 
         // Parse arguments
-        if (text.charAt(pos) != ")")
-            for (; ;) {
-                var name = text.slice(pos).match(/^([^, \(\[\{]+): /);
-                if (name) {
-                    pos += name[0].length;
-                    name = name[1];
-                }
-                args.push({
-                    name: name,
-                    type: skipMatching(/[\),]/)
-                });
-                if (text.charAt(pos) == ")") break;
-                pos += 2;
+        if (text.charAt(pos) != ")") for (;;) {
+            var name = text.slice(pos).match(/^([^, \(\[\{]+): /);
+            if (name) {
+                pos += name[0].length;
+                name = name[1];
             }
+            args.push({
+                name: name,
+                type: skipMatching(/[\),]/)
+            });
+            if (text.charAt(pos) == ")") break;
+            pos += 2;
+        }
 
         var rettype = text.slice(pos).match(/^\) -> (.*)$/);
         //logO(args, 'args'); logO(rettype, 'rettype');//nothing
@@ -890,7 +897,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         alert('need to implment dialog');
     }
 
-    function elt(tagname, cls /*, ... elts*/) {
+    function elt(tagname, cls /*, ... elts*/ ) {
         var e = document.createElement(tagname);
         if (cls) e.className = cls;
         for (var i = 2; i < arguments.length; ++i) {
@@ -959,13 +966,13 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             return;
         }
         tooltip.style.opacity = "0";
-        setTimeout(function () {
+        setTimeout(function() {
             remove(tooltip);
         }, int_timeout);
     }
 
     function showError(cm, msg) {
-        setTimeout(function () {
+        setTimeout(function() {
             throw new Error('tern error: ' + msg);
         }, 0);
     }
@@ -990,13 +997,13 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                 variable: varName || null
             };
             var doc = findDoc(ts, editor);
-                   
+
 
             //BUILD REQUEST -- this builds the query to send to tern (query has the node defnition that we are looking for, so buidRequest must look at codemirrot and find the object the cursor is on and then looks for it)
             //  logO(buildRequest(ts, doc, req), 'buildRequest result that is sent to tern') //NEVERMIND- this contains the line position currently, but it does NOT contain the node definition we are looking for
 
             //this calls  function findDef(srv, query, file) {
-            ts.server.request(buildRequest(ts, doc, req), function (error, data) {
+            ts.server.request(buildRequest(ts, doc, req), function(error, data) {
                 if (error) return showError(ts, editor, error);
                 if (!data.file && data.url) {
                     window.open(data.url);
@@ -1010,7 +1017,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                     if (localDoc && (found = findContext(localDoc.doc, data))) {
                         ts.jumpStack.push({
                             file: doc.name,
-                            start:  toTernLoc(editor.getSelectionRange().start) ,//editor.getCursor("from"), (not sure if correct)
+                            start: toTernLoc(editor.getSelectionRange().start), //editor.getCursor("from"), (not sure if correct)
                             end: toTernLoc(editor.getSelectionRange().end) //editor.getCursor("to")
                         });
                         moveTo(ts, doc, localDoc, found.start, found.end);
@@ -1021,12 +1028,10 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             });
         }
 
-        if (!atInterestingExpression(editor))
-            dialog(editor, "Jump to variable", function (name) {
-                if (name) inner(name);
-            });
-        else
-            inner();
+        if (!atInterestingExpression(editor)) dialog(editor, "Jump to variable", function(name) {
+            if (name) inner(name);
+        });
+        else inner();
     }
     // NOT CONVERTED
     function jumpBack(ts, cm) {
@@ -1036,12 +1041,12 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         moveTo(ts, findDoc(ts, cm.getDoc()), doc, pos.start, pos.end);
     }
     // NOT CONVERTED
-    function moveTo(ts, curDoc, doc, start, end) {        
-        var sel = curDoc.doc.getSession().getSelection();// sel.selectionLead.setPosistion();// sel.selectionAnchor.setPosistion();       
+    function moveTo(ts, curDoc, doc, start, end) {
+        var sel = curDoc.doc.getSession().getSelection(); // sel.selectionLead.setPosistion();// sel.selectionAnchor.setPosistion();       
         sel.setSelectionRange({
             start: toAceLoc(start),
             end: toAceLoc(end)
-        });       
+        });
         //doc.doc.setSelection(end, start);
 
         if (curDoc != doc) {
@@ -1054,15 +1059,15 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             }
             else {
                 showError(ts, curDoc.doc, 'Need to add editor.ternServer.options.switchToDoc to jump to another document');
-            }            
+            }
         }
     }
 
     /**
-    * Dont know what this does yet... 
-    * Marijnh's comment: The {line,ch} representation of positions makes this rather awkward.  
-    * @param {object} data - contains documentation for function, start, end, file, context, contextOffset, origin
-    */
+     * Dont know what this does yet... 
+     * Marijnh's comment: The {line,ch} representation of positions makes this rather awkward.  
+     * @param {object} data - contains documentation for function, start, end, file, context, contextOffset, origin
+     */
     function findContext(editor, data) {
         // logO(editor, 'editor'); logO(data, 'data');
         //DBG(arguments, true);
@@ -1072,7 +1077,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
 
         var text = editor.session.getLine(startLine).slice(start.ch);
         for (var cur = startLine + 1; cur < editor.session.getLength() && text.length < data.context.length; ++cur)
-            text += "\n" + editor.session.getLine(cur);
+        text += "\n" + editor.session.getLine(cur);
         if (text.slice(0, data.context.length) == data.context) return data;
 
         //COMEBACK--- need to use editor.find
@@ -1090,14 +1095,10 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         }
         if (!nearest) return null;
 
-        if (before.length == 1)
-            nearest.ch += before[0].length;
-        else
-            nearest = Pos(nearest.line + (before.length - 1), before[before.length - 1].length);
-        if (data.start.line == data.end.line)
-            var end = Pos(nearest.line, nearest.ch + (data.end.ch - data.start.ch));
-        else
-            var end = Pos(nearest.line + (data.end.line - data.start.line), data.end.ch);
+        if (before.length == 1) nearest.ch += before[0].length;
+        else nearest = Pos(nearest.line + (before.length - 1), before[before.length - 1].length);
+        if (data.start.line == data.end.line) var end = Pos(nearest.line, nearest.ch + (data.end.ch - data.start.ch));
+        else var end = Pos(nearest.line + (data.end.line - data.start.line), data.end.ch);
         return {
             start: nearest,
             end: end
@@ -1107,11 +1108,11 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
      * (not exactly sure)
      */
     function atInterestingExpression(editor) {
-        var pos = editor.getSelectionRange().end;//editor.getCursor("end"),
-        var tok = editor.session.getTokenAt(pos.row, pos.column);// editor.getTokenAt(pos);
+        var pos = editor.getSelectionRange().end; //editor.getCursor("end"),
+        var tok = editor.session.getTokenAt(pos.row, pos.column); // editor.getTokenAt(pos);
         pos = toTernLoc(pos);
         if (tok.start < pos.ch && (tok.type == "comment" || tok.type == "string")) {
-           // log('not atInterestingExpression');
+            // log('not atInterestingExpression');
             return false;
         }
         return /\w/.test(editor.session.getLine(pos.line).slice(Math.max(pos.ch - 1, 0), pos.ch + 1));
@@ -1122,12 +1123,12 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
     function rename(ts, cm) {
         var token = cm.getTokenAt(cm.getCursor());
         if (!/\w/.test(token.string)) showError(ts, cm, "Not at a variable");
-        dialog(cm, "New name for " + token.string, function (newName) {
+        dialog(cm, "New name for " + token.string, function(newName) {
             ts.request(cm, {
                 type: "rename",
                 newName: newName,
                 fullDocs: true
-            }, function (error, data) {
+            }, function(error, data) {
                 if (error) return showError(ts, cm, error);
                 applyChanges(ts, data.changes);
             });
@@ -1141,7 +1142,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         ts.request(cm, {
             type: "refs",
             fullDocs: true
-        }, function (error, data) {
+        }, function(error, data) {
             if (error) return showError(ts, cm, error);
             //data comes back with name,type,refs{start(ch,line),end(ch,line),file},             
             var r = data.name + '(' + data.type + ') References \n-----------------------------------------';
@@ -1154,14 +1155,14 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                     r += '\n' + tmp.file + ' - line: ' + tmp.start.line + ' ch: ' + tmp.start.ch;
                 }
                 catch (ex) {
-                    setTimeout(function () {
+                    setTimeout(function() {
                         throw ex;
                     }, 0);
                 }
             }
             //log(r);
             closeAllTips();
-            tempTooltip(cm, r, -1);
+            tempTooltip(cm, r, - 1);
         });
     }
 
@@ -1183,20 +1184,16 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         var scope = editor.session.$mode.$id || "";
         scope = scope.split("/").pop();
         if (scope === "html" || scope === "php") {
-            if (scope === "php")
-                scope = "html";
+            if (scope === "php") scope = "html";
             var c = editor.getCursorPosition()
             var state = editor.session.getState(c.row);
             if (typeof state === "object") {
                 state = state[0];
-            }            
+            }
             if (state.substring) {
-                if (state.substring(0, 3) == "js-")
-                    scope = "javascript";
-                else if (state.substring(0, 4) == "css-")
-                    scope = "css";
-                else if (state.substring(0, 4) == "php-")
-                    scope = "php";
+                if (state.substring(0, 3) == "js-") scope = "javascript";
+                else if (state.substring(0, 4) == "css-") scope = "css";
+                else if (state.substring(0, 4) == "php-") scope = "php";
             }
         }
         return scope;
@@ -1218,7 +1215,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         //if (argHints && argHints.doc == doc && cmpPos(argHints.start, change.to) <= 0)
         //  cachedArgHints = null;
         //DBG(arguments, true);
-        
+
         /*log('change', change);
           { change=
 	        "data": {
@@ -1241,7 +1238,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         //log('change', change);
 
         //NOTE get value: editor.ternServer.docs['[doc]'].doc.session.getValue()
-        
+
         //convert ace Change event to object that is used in logic below
         var _change = {};
         _change.from = toTernLoc(change.data.range.start);
@@ -1249,12 +1246,12 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         if (change.data.hasOwnProperty('text')) {
             _change.text = [change.data.text];
         }
-        else {//text not set when multiple lines changed, instead lines is set as array 
+        else { //text not set when multiple lines changed, instead lines is set as array 
             _change.text = change.data.lines;
-        }        
-        
-        
-        var data = findDoc(ts, doc); 
+        }
+
+
+        var data = findDoc(ts, doc);
         //log('data', data);//-- gets current doc on tern server, value can be otained by : data.doc.session.getValue()
         var argHints = ts.cachedArgHints;
 
@@ -1263,7 +1260,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             //log('removing cached arg hints');
         }
 
-        var changed = data.changed;//data is the tern server doc, which keeps a changed property, which is null here
+        var changed = data.changed; //data is the tern server doc, which keeps a changed property, which is null here
         if (changed === null) {
             //log('changed is null');
             data.changed = changed = {
@@ -1271,7 +1268,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                 to: _change.from.line
             };
         }
-       // log('_change', _change, 'changed', changed);
+        // log('_change', _change, 'changed', changed);
 
         var end = _change.from.line + (_change.text.length - 1);
         if (_change.from.line < changed.to) {
@@ -1285,7 +1282,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         }
         //if doc is > 250 lines & more than 100 lines changed, then update entire doc on tern server after 200ms.. not sure why the delay
         if (doc.session.getLength() > bigDoc && _change.to - changed.from > 100) {
-            setTimeout(function () {
+            setTimeout(function() {
                 if (data.changed && data.changed.to - data.changed.from > 100) {
                     sendDoc(ts, data);
                 }
@@ -1317,10 +1314,10 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             }
             worker.postMessage(data);
         }
-        worker.onmessage = function (e) {
+        worker.onmessage = function(e) {
             var data = e.data;
             if (data.type == "getFile") {
-                getFile(ts, data.name, function (err, text) {
+                getFile(ts, data.name, function(err, text) {
                     send({
                         type: "getFile",
                         err: String(err),
@@ -1337,25 +1334,25 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                 delete pending[data.id];
             }
         };
-        worker.onerror = function (e) {
+        worker.onerror = function(e) {
             for (var id in pending) pending[id](e);
             pending = {};
         };
 
-        this.addFile = function (name, text) {
+        this.addFile = function(name, text) {
             send({
                 type: "add",
                 name: name,
                 text: text
             });
         };
-        this.delFile = function (name) {
+        this.delFile = function(name) {
             send({
                 type: "del",
                 name: name
             });
         };
-        this.request = function (body, c) {
+        this.request = function(body, c) {
             send({
                 type: "req",
                 body: body
@@ -1363,7 +1360,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         };
         //sets defs (pass array of strings, valid defs are jquery, underscore, browser, ecma5)
         //COMEBACK-- this doesnt work yet
-        this.setDefs = function (arr_defs) {
+        this.setDefs = function(arr_defs) {
             send({
                 type: "setDefs",
                 defs: arr_defs

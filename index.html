@@ -76,13 +76,17 @@
 						</ul>
 					</li>
                     <li class="dropdown">
-                        <a class="dropdown-toggle" data-toggle="dropdown" href="#">Edit</a>
+                        <a class="dropdown-toggle" data-toggle="dropdown" href="#">Tools</a>
                         <ul class="dropdown-menu" id="editmenu">
                             <li><a id="setTheme" href="#" data-cmd="zoom0">Zoom Reset</a></li>
                             <li><a id="setTheme" href="#" data-cmd="zoom+">Zoom In</a></li>
                             <li><a id="setTheme" href="#" data-cmd="zoom-">Zoom Out</a></li>
                             <li><a id="setTheme" href="#" >-------------------</a></li>
                             <li><a id="setTheme" href="#" data-cmd="devtools">Dev Tools</a></li>
+                            <li><a id="setTheme" href="#" >-------------------</a></li>
+                            <li><a id="setTheme" href="#" data-cmd="beautify">Beautify</a></li>
+                            <li><a id="setTheme" href="#" data-cmd="aceconfig">Configure Editor</a></li>
+                            <li><a id="setTheme" href="#" data-cmd="hotkeys">Show Hotkeys</a></li>
                         </ul>
                     </li>
 				</ul>
@@ -93,7 +97,7 @@
         <script>
             (function(){
                 var gui = require('nw.gui');
-                log('gui.App.argv',gui.App.argv);
+                //log('gui.App.argv',gui.App.argv);
                 window.appLoad(gui);
                 //this line logs errors to console instead of crashing the application
                 process.on("uncaughtException", function (e) {

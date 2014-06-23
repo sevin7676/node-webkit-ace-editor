@@ -1,46 +1,49 @@
-if(!window.appLoad){
+if (!window.appLoad) {
     var appconfig = require("./package.json");
-    window.appLoad = function (gui) {
+    window.appLoad = function(gui) {
         console.log('global debug vars: gui, win (gui.Window.get(), editor, server');
         window.win = gui.Window.get();
-        window.gui = gui;//for debugging        
+        window.gui = gui; //for debugging        
 
         var ace = window.ace;
-        
+
         var detectedMode;
-        
+
         var Range = ace.require("ace/range").Range;
         var jsbeautify = require("./jsbeautify/jsbeautify.js");
-        
-        var win = gui.Window.get(); 
+
+        var win = gui.Window.get();
         win.show();
         var fs = require("fs");
         var Path = require("path");
-    
-        if(!window.global.OpenerLoaded){
+
+        if (!window.global.OpenerLoaded) {
             window.global.OpenerLoaded = true;
-            gui.App.on("open",function(filename){
+            gui.App.on("open", function(filename) {
                 console.log(filename);
                 OpenFileWindow(filename);
             });
         }
-        
+
         function OpenFileWindow(filename) {
             log('filename', filename);
             var win = gui.Window.open('index.html', appconfig.window);
             win.currentFile = filename;
         }
-        
+
+
+        //#region LoadAce
         var editor = ace.edit("editor");
-        window.editor = editor;//for debugging      
+        window.editor = editor; //for debugging      
         editor.getSession().setMode("ace/mode/sql");
         editor.getSession().setUseWrapMode(true);
         editor.getSession().setWrapLimitRange(null, null);
         editor.setShowPrintMargin(false);
+        editor.setOption("scrollPastEnd", true);
 
         //load tern
-        ace.config.loadModule('ace/ext/language_tools', function () {
-            ace.config.loadModule('ace/ext/tern', function () {
+        ace.config.loadModule('ace/ext/language_tools', function() {
+            ace.config.loadModule('ace/ext/tern', function() {
                 editor.setOptions({
                     enableTern: true,
                     enableSnippets: true,
@@ -58,10 +61,11 @@ if(!window.appLoad){
         editor.commands.addCommands([{
             name: "execute",
             bindKey: "ctrl+enter",
-            exec: function (editor) {                
+            exec: function(editor) {
                 try {
                     var r = window.eval(editor.getCopyText() || editor.getValue());
-                } catch (e) {
+                }
+                catch (e) {
                     r = e;
                 }
                 editor.cmdLine.setValue(r + "");
@@ -69,9 +73,12 @@ if(!window.appLoad){
             readOnly: true
         }, {
             name: "showKeyboardShortcuts",
-            bindKey: { win: "Ctrl-Alt-h", mac: "Command-Alt-h" },
-            exec: function (editor) {
-                config.loadModule("ace/ext/keybinding_menu", function (module) {
+            bindKey: {
+                win: "Ctrl-Alt-h",
+                mac: "Command-Alt-h"
+            },
+            exec: function(editor) {
+                config.loadModule("ace/ext/keybinding_menu", function(module) {
                     module.init(editor);
                     editor.showKeyboardShortcuts();
                 });
@@ -79,7 +86,7 @@ if(!window.appLoad){
         }, {
             name: "increaseFontSize",
             bindKey: "Ctrl-=|Ctrl-+",
-            exec: function (editor) {
+            exec: function(editor) {
                 //var size = parseInt(editor.getFontSize(), 10) || 12;
                 // editor.setFontSize(size + 1);
                 window.win.zoomLevel++;
@@ -88,8 +95,8 @@ if(!window.appLoad){
         }, {
             name: "decreaseFontSize",
             bindKey: "Ctrl+-|Ctrl-_",
-            exec: function (editor) {
-               // var size = parseInt(editor.getFontSize(), 10) || 12;
+            exec: function(editor) {
+                // var size = parseInt(editor.getFontSize(), 10) || 12;
                 // editor.setFontSize(Math.max(size - 1 || 1));
                 window.win.zoomLevel--;
                 log('decrease font size');
@@ -97,7 +104,7 @@ if(!window.appLoad){
         }, {
             name: "resetFontSize",
             bindKey: "Ctrl+0|Ctrl-Numpad0",
-            exec: function (editor) {
+            exec: function(editor) {
                 // editor.setFontSize(12);
                 window.win.zoomLevel = 0;
                 log('reset font size');
@@ -107,90 +114,102 @@ if(!window.appLoad){
         //add beautify
         editor.commands.addCommand({
             name: 'beautify',
-            bindKey: {mac: "Command-Shift-B", win: "Shift-Ctrl-B"},
+            bindKey: {
+                mac: "Command-Shift-B",
+                win: "Shift-Ctrl-B"
+            },
             exec: function(editor) {
-                
+
                 var sel = editor.selection;
                 var session = editor.session;
                 var range = sel.getRange();
                 //if nothing is selected, then select all
+                var formatAll = false;
+                var originalRangeStart = editor.selection.getRange().start;
                 if (range.start.row === range.end.row && range.start.column === range.end.column) {
+                    //log('originalRangeStart', originalRangeStart);
                     range.start.row = 0;
                     range.start.column = 0;
                     var lastLine = editor.session.getLength() - 1;
                     range.end.row = lastLine;
                     range.end.column = editor.session.getLine(lastLine).length;
+                    formatAll = true;
                 }
+
                 var options = {};
-                    options.space_before_conditional = true;
-                    options.keep_array_indentation =  false;
-                    options.preserve_newlines =  true;
-                    options.unescape_strings =  true;
-                    options.jslint_happy =  false;
-                    options.brace_style =  "end-expand";
-            
-                    if (session.getUseSoftTabs()) {
-                        options.indent_char = " ";
-                        options.indent_size = session.getTabSize();
-                    } else {
-                        options.indent_char = "\t";
-                        options.indent_size = 1;
-                    }
-                
+                options.space_before_conditional = true;
+                options.keep_array_indentation = false;
+                options.preserve_newlines = true;
+                options.unescape_strings = true;
+                options.jslint_happy = false;
+                options.brace_style = "end-expand";
+
+                if (session.getUseSoftTabs()) {
+                    options.indent_char = " ";
+                    options.indent_size = session.getTabSize();
+                }
+                else {
+                    options.indent_char = "\t";
+                    options.indent_size = 1;
+                }
+
                 var line = session.getLine(range.start.row);
                 var indent = line.match(/^\s*/)[0];
                 var trim = false;
-        
-                if (range.start.column < indent.length)
-                    range.start.column = 0;
-                else
-                    trim = true;
-        
-        
+
+                if (range.start.column < indent.length) range.start.column = 0;
+                else trim = true;
+
+
                 var value = session.getTextRange(range);
                 $("[data-mode]").parent().removeClass("active");
                 //var syntax = session.syntax;
                 var type = null;
-        
+
                 if (detectedMode == "javascript") {
                     type = "js";
-                } else if (detectedMode == "css") {
-                    type = "css";
-                } if (/^\s*<!?\w/.test(value)) {
-                    type = "html";
-                } else if (detectedMode == "xml") {
-                    type = "html";
-                } else if (detectedMode == "html") {
-                    if (/[^<]+?\{[\s\-\w]+:[^}]+;/.test(value))
-                        type = "css";
-                    else if (/<\w+[ \/>]/.test(value))
-                        type = "html";
-                    else
-                        type = "js";
                 }
-        
+                else if (detectedMode == "css") {
+                    type = "css";
+                }
+                if (/^\s*<!?\w/.test(value)) {
+                    type = "html";
+                }
+                else if (detectedMode == "xml") {
+                    type = "html";
+                }
+                else if (detectedMode == "html") {
+                    if (/[^<]+?\{[\s\-\w]+:[^}]+;/.test(value)) type = "css";
+                    else if (/<\w+[ \/>]/.test(value)) type = "html";
+                    else type = "js";
+                }
+
                 try {
                     value = jsbeautify[type + "_beautify"](value, options);
-                    if (trim)
-                        value = value.replace(/^/gm, indent).trim();
-                    if (range.end.column === 0)
-                        value += "\n" + indent;
+                    if (trim) value = value.replace(/^/gm, indent).trim();
+                    if (range.end.column === 0) value += "\n" + indent;
                 }
                 catch (e) {
                     window.alert("Error: This code could not be beautified " + syntax + " is not supported yet");
                     return;
                 }
-        
-                var end = session.replace(range, value);
-                sel.setSelectionRange(Range.fromPoints(range.start, end));
-                
+
+                if (!formatAll) {
+                    var end = session.replace(range, value);
+                    sel.setSelectionRange(Range.fromPoints(range.start, end));
+                }
+                else {
+                    //log('set  original', originalRangeStart);
+                    session.replace(range, value);
+                    sel.setSelectionRange(Range.fromPoints(originalRangeStart, originalRangeStart));
+                }
+
             },
             readOnly: false // false if this command should not apply in readOnly mode
         });
-        
-        
+
         var theme = window.localStorage.aceTheme || "chrome";
-        editor.setTheme("ace/theme/"+theme);
+        editor.setTheme("ace/theme/" + theme);
         var editorSession = editor.getSession();
         // name: ["Menu caption", "extensions", "content-type", "hidden|other"]
         var SupportedModes = {
@@ -267,43 +286,42 @@ if(!window.appLoad){
             hiddenMode[mode.caption] = mode.hidden;
             otherMode[mode.caption] = mode.other;
             contentTypes[mode.mime] = name;
-            
-            syntaxMenuHtml += '<li><a href="#" data-mode="'+name+'">'+mode.caption+'</a></li>';
+
+            syntaxMenuHtml += '<li><a href="#" data-mode="' + name + '">' + mode.caption + '</a></li>';
         });
-        
+
         $("#syntaxMenu").html(syntaxMenuHtml);
-        
-    
+
+        //#endregion
+
+
+        //#region FileHandling
         var hasChanged = false;
-        var currentFile = 
-                win.currentFile ? 
-                win.currentFile :
-                process && 
-                process._nw_app && 
-                fs.existsSync(process._nw_app.argv[0]) ?
-                process._nw_app.argv[0] : 
-                null ;
-        
-        if(win.currentFile){
+        var currentFile = win.currentFile ? win.currentFile : process && process._nw_app && fs.existsSync(process._nw_app.argv[0]) ? process._nw_app.argv[0] : null;
+
+        if (win.currentFile) {
             openFile(currentFile);
-        }else if (process && process._nw_app && fs.existsSync(process._nw_app.argv[0])) {
-            try{
+        }
+        else if (process && process._nw_app && fs.existsSync(process._nw_app.argv[0])) {
+            try {
                 openFile(process._nw_app.argv[0]);
-            }catch(e){
+            }
+            catch (e) {
                 console.log(e);
             }
-        }else{
+        }
+        else {
             openFile();
         }
-    
-    
+
+
         editorSession.on("change", function() {
             if (currentFile) {
                 hasChanged = true;
                 $("title").text("*" + currentFile);
             }
         });
-    
+
         $(window).keypress(function(event) {
             if (!(event.which == 115 && event.ctrlKey) && event.which !== 19) return true;
             event.preventDefault();
@@ -311,7 +329,7 @@ if(!window.appLoad){
             saveFileFN();
             return false;
         });
-        
+
         function openFile(path) {
             if (hasChanged && !saveFileFN(true)) return false;
             currentFile = null;
@@ -329,10 +347,11 @@ if(!window.appLoad){
                 path = "Untitled";
                 editor.getSession().setValue("");
             }
-    
+
             currentFile = path;
             $("title").text(currentFile);
         }
+
         function saveasDialog(name) {
             var chooser = $(name);
             chooser.trigger('click');
@@ -343,21 +362,24 @@ if(!window.appLoad){
                 saveFileFN();
             });
         }
+
         function saveFileFN() {
-            if (/*hasChanged &&*/ currentFile !== "Untitled") {
+            if ( /*hasChanged &&*/ currentFile !== "Untitled") {
                 var data = editor.getSession().getValue(); //.replace(/\n/g,"\r\n");
-                if(currentFile == "Untitled"){
+                if (currentFile == "Untitled") {
                     saveasDialog('#saveasDialog');
-                }else{
+                }
+                else {
                     fs.writeFileSync(currentFile, data, "utf8");
                     $("title").text(currentFile);
                     hasChanged = false;
                 }
-            }else{
+            }
+            else {
                 saveasDialog('#saveasDialog');
             }
         }
-    
+
         $("#newFile").click(function() {
             if (confirm("All Changes will be lost?")) {
                 openFile();
@@ -381,93 +403,79 @@ if(!window.appLoad){
         $("#saveasFile").click(function() {
             saveasDialog('#saveasDialog');
         });
-        
-        //Theme
-        
+        //#endregion
+
+
+        //#region Theme
         $("[data-theme]").click(function(e) {
             theme = e.target.attributes["data-theme"].value;
             window.localStorage.aceTheme = theme;
-            editor.setTheme("ace/theme/"+theme);
-            
+            editor.setTheme("ace/theme/" + theme);
+
             $("[data-theme]").parent().removeClass("active");
-            $("[data-theme='"+theme+"']").parent().addClass("active");
+            $("[data-theme='" + theme + "']").parent().addClass("active");
         });
-        
-        var darkThemes = [
-            'ambiance',
-            'chaos',
-            'clouds_midnight',
-            'cobalt',
-            'idle_fingers',
-            'kr_theme',
-            'merbivore',
-            'merbivore_soft',
-            'mono_industrial',
-            'monokai',
-            'pastel_on_dark',
-            'solarized_dark',
-            'tomorrow_night',
-            'tomorrow_night_blue',
-            'tomorrow_night_bright',
-            'tomorrow_night_eighties',
-            'twilight',
-            'vibrant_ink'
-        ];
-        
-        function isDarkTheme(theme){
-            for(var i in darkThemes){
-                if(darkThemes[i] == theme) return true;
+
+        var darkThemes = ['ambiance', 'chaos', 'clouds_midnight', 'cobalt', 'idle_fingers', 'kr_theme', 'merbivore', 'merbivore_soft', 'mono_industrial', 'monokai', 'pastel_on_dark', 'solarized_dark', 'tomorrow_night', 'tomorrow_night_blue', 'tomorrow_night_bright', 'tomorrow_night_eighties', 'twilight', 'vibrant_ink'];
+
+        function isDarkTheme(theme) {
+            for (var i in darkThemes) {
+                if (darkThemes[i] == theme) return true;
             }
             return false;
         }
-        
-        $("[data-theme]").hover(function(e){
+
+        $("[data-theme]").hover(function(e) {
             var ttheme = e.target.attributes["data-theme"].value;
-            editor.setTheme("ace/theme/"+ttheme);
-            if(isDarkTheme(ttheme)){
+            editor.setTheme("ace/theme/" + ttheme);
+            if (isDarkTheme(ttheme)) {
                 $(".navbar-static-top").addClass("navbar-inverse");
-            }else{
+            }
+            else {
                 $(".navbar-static-top").removeClass("navbar-inverse");
             }
-        },function(){
+        }, function() {
             var ttheme = window.localStorage.aceTheme;
-            editor.setTheme("ace/theme/"+ttheme);
-            if(isDarkTheme(ttheme)){
+            editor.setTheme("ace/theme/" + ttheme);
+            if (isDarkTheme(ttheme)) {
                 $(".navbar-static-top").addClass("navbar-inverse");
-            }else{
+            }
+            else {
                 $(".navbar-static-top").removeClass("navbar-inverse");
             }
         });
-        
+
         $("[data-theme]").parent().removeClass("active");
-        $("[data-theme='"+theme+"']").parent().addClass("active");
-        if(isDarkTheme(theme)){
+        $("[data-theme='" + theme + "']").parent().addClass("active");
+        if (isDarkTheme(theme)) {
             $(".navbar-static-top").addClass("navbar-inverse");
-        }else{
+        }
+        else {
             $(".navbar-static-top").removeClass("navbar-inverse");
         }
-        
-        //Syntax
-        
+        //#endregion
+
+
+        //#region Syntax
         $("[data-mode]").click(function(e) {
             var mode = e.target.attributes["data-mode"].value;
             editor.getSession().setMode("ace/mode/" + mode);
             detectedMode = mode;
             $("[data-mode]").parent().removeClass("active");
-            $("[data-mode='"+mode+"']").parent().addClass("active");
+            $("[data-mode='" + mode + "']").parent().addClass("active");
         });
-        
-        
-        $("[data-mode]").hover(function(e){
+
+
+        $("[data-mode]").hover(function(e) {
             var mode = e.target.attributes["data-mode"].value;
             editor.getSession().setMode("ace/mode/" + mode);
-        },function(){
+        }, function() {
             editor.getSession().setMode("ace/mode/" + detectedMode);
         });
-        
+
         $("[data-mode]").parent().removeClass("active");
-        $("[data-mode='"+detectedMode+"']").parent().addClass("active");
-            
+        $("[data-mode='" + detectedMode + "']").parent().addClass("active");
+
         win.on('close', function() {
             function disp_confirm() {
                 var r = confirm("Press a button!");
@@ -480,14 +488,15 @@ if(!window.appLoad){
             }
             win.close(true);
         });
-    
+
         $("#windowClose").click(function() {
             win.close();
         });
+        //#endregion
 
 
-        //edit menu
-        $("[data-cmd]").click(function (e) {
+        //#region ToolsMenu
+        $("[data-cmd]").click(function(e) {
             var cmd = e.target.attributes["data-cmd"].value;
             if (cmd == 'zoom+') {
                 window.win.zoomLevel++;
@@ -496,14 +505,24 @@ if(!window.appLoad){
                 window.win.zoomLevel--;
             }
             else if (cmd == 'zoom0') {
-                window.win.zoomLevel=0;
+                window.win.zoomLevel = 0;
             }
             else if (cmd == 'devtools') {
                 window.win.showDevTools();
+            }
+            else if (cmd == 'beautify') {
+                editor.execCommand('beautify')
+            }
+            else if (cmd == 'hotkeys') {
+                editor.execCommand('showKeyboardShortcuts');
+            }
+            else if (cmd == 'aceconfig') {
+                editor.execCommand('showSettingsMenu')
             }
             else {
                 log('cmd=' + cmd);
             }
         });
+        //#endregion
     };
 }
