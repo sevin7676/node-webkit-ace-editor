@@ -3,8 +3,7 @@ if(!window.appLoad){
     window.appLoad = function (gui) {
         console.log('global debug vars: gui, win (gui.Window.get(), editor, server');
         window.win = gui.Window.get();
-        window.gui = gui;//for debugging
-        process.on("uncaughtException", function (e) { console.log(e); });//this line logs errors to console instead of crashing the application
+        window.gui = gui;//for debugging        
 
         var ace = window.ace;
         
@@ -21,11 +20,13 @@ if(!window.appLoad){
         if(!window.global.OpenerLoaded){
             window.global.OpenerLoaded = true;
             gui.App.on("open",function(filename){
+                console.log(filename);
                 OpenFileWindow(filename);
             });
         }
         
-        function OpenFileWindow(filename){
+        function OpenFileWindow(filename) {
+            log('filename', filename);
             var win = gui.Window.open('index.html', appconfig.window);
             win.currentFile = filename;
         }
@@ -54,12 +55,10 @@ if(!window.appLoad){
         config.init();
 
         //add commands from kitchen sink demo
-
         editor.commands.addCommands([{
             name: "execute",
             bindKey: "ctrl+enter",
-            exec: function (editor) {
-                window.win.showDevTools();
+            exec: function (editor) {                
                 try {
                     var r = window.eval(editor.getCopyText() || editor.getValue());
                 } catch (e) {
@@ -105,7 +104,7 @@ if(!window.appLoad){
             }
         }]);
 
-
+        //add beautify
         editor.commands.addCommand({
             name: 'beautify',
             bindKey: {mac: "Command-Shift-B", win: "Shift-Ctrl-B"},
@@ -498,6 +497,9 @@ if(!window.appLoad){
             }
             else if (cmd == 'zoom0') {
                 window.win.zoomLevel=0;
+            }
+            else if (cmd == 'devtools') {
+                window.win.showDevTools();
             }
             else {
                 log('cmd=' + cmd);

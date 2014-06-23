@@ -1,4 +1,4 @@
-﻿
+
 /**
 * Logs Debug information to console;
 * Call from any function and simply pass arguments;

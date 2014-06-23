@@ -81,6 +81,8 @@
                             <li><a id="setTheme" href="#" data-cmd="zoom0">Zoom Reset</a></li>
                             <li><a id="setTheme" href="#" data-cmd="zoom+">Zoom In</a></li>
                             <li><a id="setTheme" href="#" data-cmd="zoom-">Zoom Out</a></li>
+                            <li><a id="setTheme" href="#" >-------------------</a></li>
+                            <li><a id="setTheme" href="#" data-cmd="devtools">Dev Tools</a></li>
                         </ul>
                     </li>
 				</ul>
@@ -91,7 +93,15 @@
         <script>
             (function(){
                 var gui = require('nw.gui');
+                log('gui.App.argv',gui.App.argv);
                 window.appLoad(gui);
+                //this line logs errors to console instead of crashing the application
+                process.on("uncaughtException", function (e) {
+                    if (!gui.Window.get().isDevToolsOpen()) {
+                        gui.Window.get().showDevTools();
+                    }                    
+                    console.log(e);
+                });
             })();
         </script>
         <input style="display:none;" id="openfileDialog" type="file"/>
