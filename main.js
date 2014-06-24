@@ -15,7 +15,8 @@ if (!window.appLoad) {
 
         var win = gui.Window.get();
         win.show();
-        var fs = require("fs"); window.fs = fs;//for debugging        
+        var fs = require("fs");
+        window.fs = fs; //for debugging        
         var Path = require("path");
         if (!window.global.OpenerLoaded) {
             window.global.OpenerLoaded = true;
@@ -43,11 +44,11 @@ if (!window.appLoad) {
                         StringtoCheck += "\n" + thisLine;
                     }
                     else {
-                        break;//only top lines may be references
+                        break; //only top lines may be references
                     }
                 }
                 if (StringtoCheck !== '') {
-                    var re = /(?!\/\/\/\s*?<reference path=")[^"]*/g;                    
+                    var re = /(?!\/\/\/\s*?<reference path=")[^"]*/g;
                     var m;
                     var refs = [];
                     while ((m = re.exec(StringtoCheck)) != null) {
@@ -56,7 +57,7 @@ if (!window.appLoad) {
                         }
                         var r = m[0].replace('"', '');
                         if (r.toLowerCase().indexOf('reference path') === -1 && r.trim() !== '' && r.toLowerCase().indexOf('/>') === -1) {
-                            if (r.toLowerCase().indexOf('vsdoc') === -1) {//dont load vs doc files as they are visual studio xml junk
+                            if (r.toLowerCase().indexOf('vsdoc') === -1) { //dont load vs doc files as they are visual studio xml junk
                                 refs.push(r);
                             }
                         }
@@ -73,60 +74,65 @@ if (!window.appLoad) {
 
                     //resolves path if needed (if relative)
                     function ResolvePath(path) {
-                        var pathPart1=currentPath;
+                        var pathPart1 = currentPath;
                         if (path.toLowerCase().indexOf("http") !== -1) {
                             return path;
                         }
-                        path = path.replace(new RegExp('/', 'g'), '\\');//forward to back slashes
-                        while (path.substr(0, 3) === '..\\') {                            
+                        path = path.replace(new RegExp('/', 'g'), '\\'); //forward to back slashes
+                        while (path.substr(0, 3) === '..\\') {
                             var t1 = pathPart1.substr(0, pathPart1.lastIndexOf("\\"));
                             var t2 = t1.substr(0, t1.lastIndexOf("\\"));
                             pathPart1 = t2;
                             path = path.substring(3);
                         }
-                        return pathPart1 + "\\" + path;                        
-                    }                   
+                        return pathPart1 + "\\" + path;
+                    }
                     //reads file and adds to tern
-                    function ReadFile_AddToTern(name, path)
-                    {
+                    function ReadFile_AddToTern(name, path) {
                         if (path.toLowerCase().indexOf("http") !== -1) {
-                            var http = require('http');                                                   
+                            var http = require('http');
                             //downloads file and fires callback whend one
-                             function downloadFile(url, dest, cb) {
+                            function downloadFile(url, dest, cb) {
                                 var file = fs.createWriteStream(dest);
-                                var request = http.get(url, function (response) {
+                                var request = http.get(url, function(response) {
                                     response.pipe(file);
-                                    file.on('finish', function () {
+                                    file.on('finish', function() {
                                         file.close(cb);
                                     });
                                 });
-                             }
+                            }
                             //generate temp file name
-                             var tempFileName = "TEMP_" + Math.random().toString(36).slice(2) + ".js";
+                            var tempFileName = "TEMP_" + Math.random().toString(36).slice(2) + ".js";
 
                             //download file to temp directory
-                            downloadFile(path, tempFileName, function () {
+                            downloadFile(path, tempFileName, function() {
                                 //download file complete, now read it and add to tern
-                                 fs.readFile(tempFileName, function (err, data) {
-                                     if (err) {
-                                         log('error getting file: ' + path, err);
-                                     }
-                                     else {
-                                         log({stack:false, time:false},'adding ' + name + ' to tern (' + path + ')');
-                                         editor.ternServer.addDoc(name, data.toString());
-                                     }
-                                     //now delete the temp file
-                                     fs.unlink(tempFileName);
-                                 });                                 
-                             });
+                                fs.readFile(tempFileName, function(err, data) {
+                                    if (err) {
+                                        log('error getting file: ' + path, err);
+                                    }
+                                    else {
+                                        log({
+                                            stack: false,
+                                            time: false
+                                        }, 'adding ' + name + ' to tern (' + path + ')');
+                                        editor.ternServer.addDoc(name, data.toString());
+                                    }
+                                    //now delete the temp file
+                                    fs.unlink(tempFileName);
+                                });
+                            });
                         }
-                        else {//local
-                            fs.readFile(thisPath, function (err, data) {
+                        else { //local
+                            fs.readFile(thisPath, function(err, data) {
                                 if (err) {
                                     log('error getting file: ' + path, err);
                                 }
                                 else {
-                                    log({ stack: false, time: false }, 'adding ' + name + ' to tern (' + path + ')');
+                                    log({
+                                        stack: false,
+                                        time: false
+                                    }, 'adding ' + name + ' to tern (' + path + ')');
                                     editor.ternServer.addDoc(name, data.toString());
                                 }
                             });
@@ -142,7 +148,7 @@ if (!window.appLoad) {
             }
             else {
                 log('tern not enabled at current location');
-            }            
+            }
         }
         //#endregion
 
@@ -323,6 +329,80 @@ if (!window.appLoad) {
             readOnly: false // false if this command should not apply in readOnly mode
         });
 
+        //add auto beautify
+        editor.commands.on('afterExec', function(e) {
+            // DBG(arguments,true);
+            if (e.command.name === "insertstring" && e.args === "}") {
+                //ADD-- javascript only
+                var pos = editor.getSelectionRange().end;
+                var tok = editor.session.getTokenAt(pos.row, pos.column);
+                if (tok) {
+                    if (tok.type !== 'string' && tok.type !== 'comment') {
+                        editor.jumpToMatching(true); //jumpto and select
+                        editor.execCommand('beautify');
+                    }
+                }
+            }
+            //testing auto beautify
+            function getMatching(select) {
+                var cursor = editor.getCursorPosition();
+                var range = editor.session.getBracketRange(cursor);
+                if (!range) {
+                    range = editor.find({
+                        needle: /[{}()\[\]]/g,
+                        preventScroll: true,
+                        start: {
+                            row: cursor.row,
+                            column: cursor.column - 1
+                        }
+                    });
+                    if (!range) return;
+                    var pos = range.start;
+                    if (pos.row == cursor.row && Math.abs(pos.column - cursor.column) < 2) range = editor.session.getBracketRange(pos);
+                }
+                pos = range && range.cursor || pos;
+                if (pos) {
+                    if (select) {
+                        if (range && range.isEqual(editor.getSelectionRange())) {
+                            editor.clearSelection();
+                        }
+                        else editor.selection.selectTo(pos.row, pos.column);
+                    }
+                    else {
+                        editor.selection.moveTo(pos.row, pos.column);
+                    }
+                }
+            }
+        });
+    
+        //show token info
+        editor.getSession().selection.on('changeCursor', function() {
+            try { //throws error if null
+                var position = editor.getSelectionRange().start;
+                var token = editor.session.getTokenAt(position.row, position.column);
+                if (!token) {
+                    $('#CurrentToken').html('');
+                    return;
+                }
+                var r = '';
+                r += token.type.toString();
+                if (token.start) {
+                    r += "<span style='padding-left:5px; color:blue;'>start: " + token.start + "</span>";
+                }
+                if (token.index) {
+                    r += "<span style='padding-left:5px; color:blue;'>index: " + token.index + "</span>";
+                }
+                r += "<span style='padding-left:5px; color:black; font-size:10px;'>Row " + position.row + "</span>";
+                r += "<span style='padding-left:5px; color:black; font-size:10px;'>Col " + position.column + "</span>";
+                $('#CurrentToken').html(r);
+            }
+            catch (ex) {
+                console.log(ex);
+            }
+        });
+
+
+        //#region ThemesAndSyntax
         var theme = window.localStorage.aceTheme || "chrome";
         editor.setTheme("ace/theme/" + theme);
         var editorSession = editor.getSession();
@@ -404,9 +484,9 @@ if (!window.appLoad) {
 
             syntaxMenuHtml += '<li><a href="#" data-mode="' + name + '">' + mode.caption + '</a></li>';
         });
-
         $("#syntaxMenu").html(syntaxMenuHtml);
-
+        //#endregion
+        
         //#endregion
 
 
@@ -445,7 +525,7 @@ if (!window.appLoad) {
         });
 
         function openFile(path) {
-            window.currentFile = path;//set global
+            window.currentFile = path; //set global
             if (hasChanged && !saveFileFN(true)) return false;
             currentFile = null;
             if (path) {
@@ -457,8 +537,8 @@ if (!window.appLoad) {
                 hasChanged = false;
                 editor.getSession().setValue(fs.readFileSync(path, "utf8"));
                 hasChanged = false;
-                window.loadedFile = path;//for tern refs
-                setTimeout(loadTernRefs, 3000);//load tern refs
+                window.loadedFile = path; //for tern refs
+                setTimeout(loadTernRefs, 3000); //load tern refs
             }
             else {
                 path = "Untitled";
@@ -636,4 +716,18 @@ if (!window.appLoad) {
         });
         //#endregion
     };
+}
+
+/**
+ * display message on client in bottom right corner
+ * @param {string} s - message to display (html or text)
+ * @param {bool} [isError=false] - pass true to display red text
+ */
+function statusMsg(s, isError) {
+    if (isError) {
+        s = "<span style='color:red;'>" + s + "</span>";
+    }
+    var el = $('#statusMsg');
+    el.html(s);
+    el.attr('title', e.text());
 }
