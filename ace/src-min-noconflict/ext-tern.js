@@ -279,7 +279,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         /**
          * Fired from editor.onChange
          * @param {object} change - change event from editor
-         * @param {editor} doc 
+         * @param {editor} doc
          */
         this.trackChange = function(change, doc) {
             trackChange(self, doc, change);
@@ -674,13 +674,18 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             
             
             //#region OtherCompletions
-            var otherCompletions={};
+            var otherCompletions=[];
             //if basic auto completion is on, then get keyword completions that are not found in tern results
             if (editor.getOption('enableBasicAutocompletion') === true) {
-                otherCompletions = editor.session.$mode.getCompletions();
+                try{
+                    otherCompletions= editor.session.$mode.getCompletions();
+                }
+                catch(ex){
+                    //TODO: this throws error when using tern in script tags in mixed html mode- need to fix this(not critical, but missing keyword completions when using html mixed)
+                }
             }
             
-            //add local string completions if enabled, this is far more useful than the local text completions 
+            //add local string completions if enabled, this is far more useful than the local text completions
             // gets string tokens that have no spaces or quotes that are longer than min length, tested on 5,000 line doc and takes about ~10ms
             var ternLocalStringMinLength = editor.getOption('ternLocalStringMinLength');
             if(ternLocalStringMinLength > 0){
@@ -854,7 +859,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         if (!start.hasOwnProperty('line')) { //start not found
             return;
         }
-        start = toTernLoc(start); //convert       
+        start = toTernLoc(start); //convert
 
         //check for arg hints for the same call start, if found, then use them but update the argPos (occurs when moving between args in same call)
         var cache = ts.cachedArgHints;
@@ -1135,7 +1140,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
     }
     // NOT CONVERTED
     function moveTo(ts, curDoc, doc, start, end) {
-        var sel = curDoc.doc.getSession().getSelection(); // sel.selectionLead.setPosistion();// sel.selectionAnchor.setPosistion();       
+        var sel = curDoc.doc.getSession().getSelection(); // sel.selectionLead.setPosistion();// sel.selectionAnchor.setPosistion();
         sel.setSelectionRange({
             start: toAceLoc(start),
             end: toAceLoc(end)
@@ -1147,7 +1152,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                 closeArgHints(ts);
                 //logO(doc, 'moveto.doc');logO(start, 'moveto.start'); logO(end, 'moveto.end');
                 //5.23.2014- added start  parameter to pass to child
-                //console.log(ts.options.switchToDoc, start);            
+                //console.log(ts.options.switchToDoc, start);
                 ts.options.switchToDoc(doc.name, start);
             }
             else {
@@ -1157,8 +1162,8 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
     }
 
     /**
-     * Dont know what this does yet... 
-     * Marijnh's comment: The {line,ch} representation of positions makes this rather awkward.  
+     * Dont know what this does yet...
+     * Marijnh's comment: The {line,ch} representation of positions makes this rather awkward.
      * @param {object} data - contains documentation for function, start, end, file, context, contextOffset, origin
      */
     function findContext(editor, data) {
@@ -1237,7 +1242,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             fullDocs: true
         }, function(error, data) {
             if (error) return showError(ts, cm, error);
-            //data comes back with name,type,refs{start(ch,line),end(ch,line),file},             
+            //data comes back with name,type,refs{start(ch,line),end(ch,line),file},
             var r = data.name + '(' + data.type + ') References \n-----------------------------------------';
             if (!data.refs || data.refs.length === 0) {
                 r += '<br/>' + 'No references found';
@@ -1271,7 +1276,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
     }
 
     /**
-     * Gets editors mode at cursor posistion (including nested mode) (copied from snipped manager)     * 
+     * Gets editors mode at cursor posistion (including nested mode) (copied from snipped manager)     *
      */
     function getCurrentMode(editor) {
         var scope = editor.session.$mode.$id || "";
@@ -1339,7 +1344,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
         if (change.data.hasOwnProperty('text')) {
             _change.text = [change.data.text];
         }
-        else { //text not set when multiple lines changed, instead lines is set as array 
+        else { //text not set when multiple lines changed, instead lines is set as array
             _change.text = change.data.lines;
         }
 

@@ -172,6 +172,7 @@ if (!window.appLoad) {
             ace.config.loadModule('ace/ext/tern', function() {
                 editor.setOptions({
                     enableTern: true,
+                    ternLocalStringMinLength:3,
                     enableSnippets: true,
                     enableBasicAutocompletion: true
                 });
