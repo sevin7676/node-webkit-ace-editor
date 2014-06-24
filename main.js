@@ -1,3 +1,5 @@
+/// <reference path="helpers.js" />
+
 if (!window.appLoad) {
     var appconfig = require("./package.json");
     window.appLoad = function(gui) {
@@ -32,7 +34,6 @@ if (!window.appLoad) {
             var win = gui.Window.open('index.html', appconfig.window);
             win.currentFile = filename;
         }
-
 
         //#region GetTernRefs
         function loadTernRefs() {
@@ -112,10 +113,12 @@ if (!window.appLoad) {
                                         log('error getting file: ' + path, err);
                                     }
                                     else {
+                                        var m = 'adding ' + name + ' to tern (' + path + ')';
                                         log({
                                             stack: false,
                                             time: false
-                                        }, 'adding ' + name + ' to tern (' + path + ')');
+                                        }, m);
+                                        statusMsg(m);
                                         editor.ternServer.addDoc(name, data.toString());
                                     }
                                     //now delete the temp file
@@ -129,10 +132,12 @@ if (!window.appLoad) {
                                     log('error getting file: ' + path, err);
                                 }
                                 else {
+                                    var m = 'adding ' + name + ' to tern (' + path + ')';
                                     log({
                                         stack: false,
                                         time: false
-                                    }, 'adding ' + name + ' to tern (' + path + ')');
+                                    }, m);
+                                    statusMsg(m);
                                     editor.ternServer.addDoc(name, data.toString());
                                 }
                             });
@@ -239,8 +244,8 @@ if (!window.appLoad) {
                 mac: "Command-Shift-B",
                 win: "Shift-Ctrl-B"
             },
-            exec: function(editor) {
-
+            exec: function(editor,unselect) {
+                //param unselect- if true, then unselect the selection after execution
                 var sel = editor.selection;
                 var session = editor.session;
                 var range = sel.getRange();
@@ -317,7 +322,12 @@ if (!window.appLoad) {
 
                 if (!formatAll) {
                     var end = session.replace(range, value);
-                    sel.setSelectionRange(Range.fromPoints(range.start, end));
+                    if(unselect){
+                        sel.setSelectionRange(Range.fromPoints(end, end));
+                    }
+                    else{
+                        sel.setSelectionRange(Range.fromPoints(range.start, end));
+                    }
                 }
                 else {
                     //log('set  original', originalRangeStart);
@@ -331,15 +341,14 @@ if (!window.appLoad) {
 
         //add auto beautify
         editor.commands.on('afterExec', function(e) {
-            // DBG(arguments,true);
             if (e.command.name === "insertstring" && e.args === "}") {
                 //ADD-- javascript only
                 var pos = editor.getSelectionRange().end;
                 var tok = editor.session.getTokenAt(pos.row, pos.column);
                 if (tok) {
-                    if (tok.type !== 'string' && tok.type !== 'comment') {
+                    if (tok.type !== 'string' && tok.type.toString().indexOf('comment') ===-1) {
                         editor.jumpToMatching(true); //jumpto and select
-                        editor.execCommand('beautify');
+                        editor.execCommand('beautify',true);
                     }
                 }
             }
@@ -729,5 +738,5 @@ function statusMsg(s, isError) {
     }
     var el = $('#statusMsg');
     el.html(s);
-    el.attr('title', e.text());
+    el.attr('title', el.text());
 }
