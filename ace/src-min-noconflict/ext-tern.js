@@ -126,6 +126,7 @@ function(require, exports, module) {
     //#endregion
 
 
+    //#region Tern
     var TernServer = require("../tern").TernServer;
     var aceTs = new TernServer({
         defs: ['jquery', 'browser', 'ecma5'],
@@ -153,13 +154,16 @@ function(require, exports, module) {
                 var pos = editor.getSelectionRange().end;
                 var tok = editor.session.getTokenAt(pos.row, pos.column);
                 if (tok) {
-                    if (tok.type !== 'string' && tok.type !== 'comment') {
+                    if (tok.type !== 'string' && tok.type.toString().indexOf('comment') ===-1) {
                         e.editor.execCommand("startAutocomplete");
                     }
                 }
             }
         }
     };
+    
+    //minimum string length for tern local string completions. set to -1 to disable this
+    var ternLocalStringMinLength=3;
 
     console.log('TODO- add method for turning off tern server, should also be automatic on mode change. Make sure to remove the cursorchange event bindings that tern has when its off/disabled');
     completers.push(aceTs); //add
@@ -171,6 +175,10 @@ function(require, exports, module) {
         enableTern: {
             set: function(val) {
                 if (val) {
+                    //set default ternLocalStringMinLength
+                    if(this.getOption('ternLocalStringMinLength') === undefined){
+                        this.setOption('ternLocalStringMinLength',ternLocalStringMinLength);
+                    }
                     this.completers = completers;
                     this.ternServer = aceTs;
                     this.commands.addCommand(Autocomplete.startCommand);
@@ -187,6 +195,12 @@ function(require, exports, module) {
                         this.commands.removeCommand(Autocomplete.startCommand);
                     }
                 }
+            },
+            value: false
+        },
+        ternLocalStringMinLength: {
+            set: function(val) {
+               ternLocalStringMinLength = parseInt(val,10);
             },
             value: false
         },
@@ -220,6 +234,7 @@ function(require, exports, module) {
         }
         //ADD OPTIONS FOR TERN HERE... maybe-- or just let the exports do it
     });
+    //#endregion
 });
 
 /**
@@ -318,7 +333,6 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             //GHETTO: hack to let a plain string work as a document for auto complete only. need to comeback and fix (make it add a editor or editor session from the string)
             if(doc.constructor.name === 'String'){
                 value = doc;
-                //log('adding doc as string');
             }
             else{
                 value =docValue(this, data);
@@ -631,39 +645,107 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
      * NOTE: current implmentation of this has this method being called by the language_tools as a completor
      */
     function getCompletions(ts, editor, session, pos, prefix, callback) {
+    
         ts.request(editor, {
             type: "completions",
             types: true,
             origins: true,
             docs: true,
             filter: false
-        }, function(error, data) {
-
+        },
+    
+        function(error, data) {
             if (error) {
                 return showError(editor, error);
             }
-            //callback goes to the lang tools completor
-            callback(null, data.completions.map(function(item) {
+            //map ternCompletions to correct format
+            var ternCompletions= data.completions.map(function(item) {
                 return {
-                    /**/
+                    /*add space before icon class so Ace Prefix doesnt mess with it*/
                     iconClass: " " + (item.guess ? cls + "guess" : typeToIcon(item.type)),
                     doc: item.doc,
                     type: item.type,
                     caption: item.name,
                     value: item.name,
-                    score: 1,
+                    score: 100,
                     meta: item.origin ? item.origin : "tern"
                 };
-            }));
-
-
+            });
+            
+            
+            //#region OtherCompletions
+            var otherCompletions={};
+            //if basic auto completion is on, then get keyword completions that are not found in tern results
+            if (editor.getOption('enableBasicAutocompletion') === true) {
+                otherCompletions = editor.session.$mode.getCompletions();
+            }
+            
+            //add local string completions if enabled, this is far more useful than the local text completions 
+            // gets string tokens that have no spaces or quotes that are longer than min length, tested on 5,000 line doc and takes about ~10ms
+            var ternLocalStringMinLength = editor.getOption('ternLocalStringMinLength');
+            if(ternLocalStringMinLength > 0){
+                for (var i = 0; i < editor.session.getLength(); i++) {
+                    var tokens = editor.session.getTokens(i);
+                    for (var n = 0; n < tokens.length; n++) {
+                        var t = tokens[n];
+                        if (t.type === 'string') {
+                            var val = t.value.toString().substr(1, t.value.length - 2).trim(); //remove first and last quotes
+                            if (val.length >= ternLocalStringMinLength && val.indexOf(' ') ===-1 && val.indexOf('\'') ===-1 && val.indexOf('"') ===-1) {
+                                var isDuplicate=false;
+                                if(otherCompletions.length>0){
+                                    for (var x = 0; x < otherCompletions.length; x++) {
+                                        if (otherCompletions[x].value.toString() === val) {
+                                            isDuplicate = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if(!isDuplicate){
+                                    otherCompletions.push({
+                                        meta: 'localString',
+                                        name: val,
+                                        value: val,
+                                        score: -1
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            //now merge other completions with tern (tern has priority)
+            //tested on 5,000 line doc with all other completions and takes about ~10ms
+            if(otherCompletions.length>0){
+                var mergedCompletions = ternCompletions.slice(); //copy array
+                for (var n = 0; n < otherCompletions.length; n++) {
+                    var b = otherCompletions[n];
+                    var isDuplicate = false;
+                    for (var i = 0; i < ternCompletions.length; i++) {
+                        if (ternCompletions[i].value.toString() === b.value.toString()) {
+                            isDuplicate = true;
+                            break;
+                        }
+                    }
+                    if (!isDuplicate) {
+                        mergedCompletions.push(b);
+                    }
+                }
+                ternCompletions = mergedCompletions.slice();
+            }
+            //#endregion
+    
+    
+            //callback goes to the lang tools completor
+            callback(null, ternCompletions);
+    
             var tooltip = null;
-            //COMEBACK: also need to bind popup close and update (update likely means when the tooltip has to move)
-
+            //COMEBACK: also need to bind popup close and update (update likely means when the tooltip has to move) (and hoever over items should move tooltip)
+    
             if (!bindPopupSelect()) {
                 popupSelectionChanged(); //call once if popupselect bound exited to show tooltip for first item
             }
-
+    
             //binds popup selection change, which cant be done until first time popup is created
             function bindPopupSelect() {
                 if (popupSelectBound) {
@@ -681,7 +763,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                 popupSelectBound = true; //prevent rebinding
             }
             //fired on popup selection change
-
+    
             function popupSelectionChanged() {
                 closeAllTips(); //remove(tooltip); //using close all , but its slower, comeback and remove single if its working right
                 //gets data of currently selected completion
@@ -699,7 +781,6 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
             }
         });
     }
-
 
     //#region ArgHints
 
@@ -751,7 +832,7 @@ ace.define('ace/tern', ['require', 'exports', 'module', 'ace/lib/dom'], function
                         //Make sure this is not in a comment or start of a if statement
                         var token = editor.session.getTokenAt(row, col);
                         if(token){
-                            if(token.type ==='comment' || token.type ==='keyword'){
+                            if(token.type.toString().indexOf('comment') !== -1 || token.type ==='keyword'){
                                 break;
                             }
                         }
