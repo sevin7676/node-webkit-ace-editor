@@ -1,5 +1,4 @@
 <html>
-    
     <head>
         <title>Ace Editor</title>
         <style>
@@ -179,26 +178,30 @@
         <div id="editor"></div>
         <script src="main.js"></script>
         <script>
-            (function() {
-                var gui = require('nw.gui');
-                //log('gui.App.argv',gui.App.argv);
-                window.appLoad(gui);
-                //this line logs errors to console instead of crashing the application
-                process.on("uncaughtException", function(e) {
-                    try {
-                        /*
-                        if (!gui.Window.get().isDevToolsOpen()) {
-                            gui.Window.get().showDevTools();
+            //#region test
+            
+                (function() {
+                    var gui = require('nw.gui');
+                    //log('gui.App.argv',gui.App.argv);
+                    window.appLoad(gui);
+                    //this line logs errors to console instead of crashing the application
+                    process.on("uncaughtException", function(e) {
+                        try {
+                            /*
+                            if (!gui.Window.get().isDevToolsOpen()) {
+                                gui.Window.get().showDevTools();
+                            }
+                            */
+                            console.log(e);
+                            statusMsg(e.toString(), true);
                         }
-                        */
-                        console.log(e);
-                        statusMsg(e.toString(), true);
-                    }
-                    catch (ex) {
-                        
-                    }
-                });
-            })();
+                        catch (ex) {
+                            
+                        }
+                    });
+                })();
+                
+            //#endregion
         </script>
         <input style="display:none;" id="openfileDialog" type="file"
         />
@@ -212,5 +215,4 @@
         <div id="CurrentToken" style="position:fixed; top:5px; right:20px; font-size:10px; max-width:300px; max-height:15px; overflow:hidden; white-space:nowrap; z-index:99;"
         contenteditable="true"></div>
     </body>
-
 </html>
